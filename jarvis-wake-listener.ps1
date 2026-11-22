@@ -2,8 +2,6 @@ $ErrorActionPreference = "Stop"
 $Project = "C:\Users\Mesha\Desktop\PROJECT-JARVIS"
 $Url = "http://127.0.0.1:8765"
 $Log = Join-Path $Project "jarvis-wake.log"
-$Edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-if (!(Test-Path $Edge)) { $Edge = "C:\Program Files\Google\Chrome\Application\chrome.exe" }
 function Log($m) { Add-Content -Path $Log -Value ("[{0}] {1}" -f (Get-Date -Format s),$m) }
 $recognizer = $null
 try {
@@ -25,17 +23,16 @@ try {
   while ($true) {
     $event = Wait-Event -SourceIdentifier JarvisWake -Timeout 1
     if (!$event) { continue }
-    $result = $event.SourceEventArgs.Result
-    $phrase = $result.Text
-    $confidence = [math]::Round($result.Confidence,2)
+    $phrase = $event.SourceEventArgs.Result.Text
+    $confidence = [math]::Round($event.SourceEventArgs.Result.Confidence,2)
     Remove-Event -EventIdentifier $event.EventIdentifier
     if ($confidence -lt 0.45) { Log "Ignored low-confidence phrase '$phrase' ($confidence)."; continue }
-    if (((Get-Date)-$lastLaunch).TotalSeconds -lt 5) { continue }
+    if (((Get-Date)-$lastLaunch).TotalSeconds -lt 2) { continue }
     $lastLaunch = Get-Date
     try { Invoke-RestMethod -Uri "$Url/api/health" -TimeoutSec 2 | Out-Null }
     catch { Start-Process -FilePath "C:\Python315\python.exe" -ArgumentList "app.py" -WorkingDirectory $Project -WindowStyle Hidden; Start-Sleep -Seconds 2 }
-    Start-Process -FilePath $Edge -ArgumentList "--app=$Url"
-    Log "Recognized '$phrase' (confidence $confidence); JARVIS window launched."
+    & (Join-Path $Project "launch-jarvis-window.ps1")
+    Log "Recognized '$phrase' (confidence $confidence); focused or opened the single JARVIS window."
   }
 } catch {
   Log ("Listener error: " + $_.Exception.Message)
