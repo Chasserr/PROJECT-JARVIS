@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 jarvis_memory.sqlite3
 jarvis_memory.sqlite3-*
+jarvis-wake.log
