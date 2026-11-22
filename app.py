@@ -1,6 +1,6 @@
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-import json, urllib.request, urllib.error, subprocess, os, threading, sqlite3, uuid, time
+import json, urllib.request, urllib.error, subprocess, os, threading, sqlite3, uuid, time, re, difflib
 ROOT=Path(__file__).resolve().parent
 HOST="127.0.0.1"; PORT=int(os.environ.get("JARVIS_PORT","8765"))
 LM_URL=os.environ.get("LM_STUDIO_URL","http://127.0.0.1:1234").rstrip("/")
@@ -13,6 +13,34 @@ def db():
     conn=sqlite3.connect(DB); conn.execute("CREATE TABLE IF NOT EXISTS memories (id TEXT PRIMARY KEY, note TEXT NOT NULL, created_at INTEGER NOT NULL)"); return conn
 def get_memories():
     with db() as c: return [{"id":r[0],"note":r[1],"created_at":r[2]} for r in c.execute("SELECT id,note,created_at FROM memories ORDER BY created_at DESC")]
+def get_installed_apps():
+    ps = "$ErrorActionPreference='Stop'; Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress"
+    result = subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",ps],capture_output=True,text=True,timeout=12,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+    if result.returncode != 0: raise RuntimeError("Could not read the Windows app catalogue.")
+    data=json.loads(result.stdout or "[]")
+    if isinstance(data,dict): data=[data]
+    return [x for x in data if isinstance(x,dict) and isinstance(x.get("Name"),str) and isinstance(x.get("AppID"),str)]
+def open_installed_app(query):
+    if not isinstance(query,str) or not query.strip() or len(query)>100: raise ValueError("Tell me the application name.")
+    apps=get_installed_apps()
+    q=re.sub(r"[^a-z0-9 ]","",query.lower()).strip()
+    # Exact normalized name first; fuzzy matches only when clearly unambiguous.
+    norm=lambda s: re.sub(r"[^a-z0-9 ]","",s.lower()).strip()
+    exact=[x for x in apps if norm(x["Name"])==q]
+    matches=exact or [x for x in apps if q in norm(x["Name"]) or norm(x["Name"]) in q]
+    if not matches:
+        ranked=sorted(((difflib.SequenceMatcher(None,q,norm(x["Name"])).ratio(),x) for x in apps),key=lambda z:z[0],reverse=True)
+        if ranked and ranked[0][0]>=0.82 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.08): matches=[ranked[0][1]]
+    # Avoid choosing an arbitrary result when the user's request is ambiguous.
+    unique={x["AppID"]:x for x in matches}
+    matches=list(unique.values())
+    if len(matches)!=1:
+        suggestions=[x["Name"] for x in matches[:8]]
+        if suggestions: raise ValueError("I found more than one match: "+", ".join(suggestions)+". Which one do you mean?")
+        raise ValueError("I couldn't find that application in your Windows Start menu.")
+    app=matches[0]
+    subprocess.Popen(["explorer.exe", "shell:AppsFolder\\"+app["AppID"]],shell=False,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+    return app["Name"]
 def get_models():
     with urllib.request.urlopen(LM_URL+"/v1/models",timeout=4) as r: data=json.load(r)
     return [m.get("id","") for m in data.get("data",[]) if m.get("id","").startswith("google/gemma-4")]
@@ -32,6 +60,9 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e: d["error"]=str(e)
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
         if self.path=="/api/memory": return self.send_json(200,{"memories":get_memories()})
+        if self.path=="/api/apps":
+            try: return self.send_json(200,{"apps":[{"name":x["Name"],"id":x["AppID"]} for x in get_installed_apps()]})
+            except Exception as e: return self.send_json(503,{"error":str(e)})
         if self.path=="/": self.path="/index.html"
         return super().do_GET()
     def do_POST(self):
@@ -70,6 +101,12 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(200,{"reply":result["choices"][0]["message"]["content"],"model":selected})
             except urllib.error.HTTPError as e: return self.send_json(502,{"error":f"LM Studio HTTP {e.code}: {e.read().decode(errors='replace')[:400]}"})
             except Exception as e: return self.send_json(503,{"error":f"Cannot reach LM Studio: {e}"})
+        if self.path=="/api/desktop/open":
+            try:
+                name=open_installed_app(data.get("app",""))
+                return self.send_json(200,{"ok":True,"message":"Opening "+name,"app":name})
+            except ValueError as e: return self.send_json(404,{"error":str(e)})
+            except Exception as e: return self.send_json(500,{"error":"Could not open application: "+str(e)})
         if self.path=="/api/action":
             action=data.get("action")
             if action not in ACTIONS: return self.send_json(400,{"error":"Action not allowed"})
