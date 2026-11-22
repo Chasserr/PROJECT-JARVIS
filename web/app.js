@@ -79,7 +79,7 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
  }
  function statusMsg(t){$("#computerStatus").textContent=t}
  async function refreshScreen(){
-  try{statusMsg("Capturing Windows screen…");const r=await fetch("/api/computer/screenshot?ts="+Date.now());if(!r.ok){const d=await r.json();throw Error(d.error||"Screen capture failed")}const blob=await r.blob();const old=shot.dataset.url;if(old)URL.revokeObjectURL(old);const url=URL.createObjectURL(blob);shot.dataset.url=url;shot.src=url;statusMsg("Screen connected · "+new Date().toLocaleTimeString())}
+  try{statusMsg("Capturing Windows screen…");const r=await fetch("/api/computer/screenshot",{cache:"no-store"});if(!r.ok){const d=await r.json();throw Error(d.error||"Screen capture failed")}const blob=await r.blob();const old=shot.dataset.url;if(old)URL.revokeObjectURL(old);const url=URL.createObjectURL(blob);shot.dataset.url=url;shot.src=url;statusMsg("Screen connected · "+new Date().toLocaleTimeString())}
   catch(e){statusMsg(e.message)}
  }
  let pendingPlan=null;
