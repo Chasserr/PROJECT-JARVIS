@@ -44,3 +44,73 @@ footer{flex-shrink:0;border-top-color:#6fc9ff18;color:#7196ad}
 @keyframes nebulaDrift{from{transform:translate3d(-1.5%,1%,0) scale(1)}to{transform:translate3d(2%,-1.5%,0) scale(1.08)}}
 @keyframes starDrift{from{transform:translateY(0)}to{transform:translateY(-4%)}}
 @media(max-width:760px){.app-shell{padding:0 16px 12px}.topbar{height:58px}main{display:flex;padding:0}.stage{padding:0}.stage h1{font-size:38px}.orb-zone{height:min(58vh,440px);width:100%}.orb{width:min(84vw,400px);height:min(84vw,400px)}.orb-caption{top:calc(50% + min(27vh,210px))}.voice-hint{font-size:9px;flex-wrap:wrap}}
+
+/* Reference-matched JARVIS look: charcoal atmosphere, soft emerald haze, living green neural sphere */
+html,body{background:#171a19!important;color:#eef5ef!important}
+.backdrop{background:radial-gradient(ellipse at 8% 52%,rgba(111,145,91,.28) 0%,rgba(72,101,73,.16) 24%,transparent 49%),radial-gradient(ellipse at 53% 48%,#252a29 0%,#1c211f 48%,#151918 100%)!important}
+.backdrop:before{inset:-8%!important;background:radial-gradient(ellipse at 4% 54%,rgba(135,163,100,.18),transparent 43%),radial-gradient(ellipse at 50% 50%,rgba(79,105,91,.10),transparent 58%)!important;filter:blur(42px)!important;animation:refHaze 48s ease-in-out infinite alternate!important}
+.backdrop:after{inset:0!important;background-image:radial-gradient(1px 1px at 8% 16%,#d8e7d766 98%,transparent),radial-gradient(1px 1px at 22% 72%,#b6d4bd55 98%,transparent),radial-gradient(1px 1px at 36% 32%,#ffffff44 98%,transparent),radial-gradient(1px 1px at 51% 12%,#d2e9dc55 98%,transparent),radial-gradient(1px 1px at 67% 78%,#ffffff44 98%,transparent),radial-gradient(1px 1px at 83% 28%,#c5e4ce55 98%,transparent),radial-gradient(1px 1px at 93% 62%,#ffffff44 98%,transparent)!important;background-size:100% 100%!important;opacity:.38!important;animation:none!important}
+.stars{opacity:.075!important;background-image:radial-gradient(#d7e8dc .55px,transparent .8px)!important;background-size:4px 4px!important;mask-image:none!important}
+.scanlines{opacity:.025!important;background:repeating-linear-gradient(0deg,transparent 0 3px,#d5e4dc 4px,transparent 5px)!important}
+.app-shell{max-width:none!important;width:100%!important;padding-left:4vw!important;padding-right:4vw!important}
+main{display:flex!important;align-items:center!important;justify-content:center!important}
+.stage{width:100%!important;max-width:1100px!important}
+.stage-kicker{color:#a7c9ae!important;letter-spacing:2.4px!important}
+.stage h1{color:#f2f4ee!important;text-shadow:0 2px 24px #a4c5a51c!important}
+.stage h1 span{color:#c4e4c5!important}
+.stage>p{color:#b6c1b7!important}
+.orb-zone{height:min(43vh,420px)!important;width:min(72vw,560px)!important}
+.orb{width:min(34vw,370px)!important;height:min(34vw,370px)!important;max-width:370px!important;max-height:370px!important}
+.orb canvas{filter:drop-shadow(0 0 18px #7bffb45a) drop-shadow(0 0 55px #8edb9b20)!important}
+.orb:before{background:radial-gradient(circle,#d8ffe51b,transparent 69%)!important;box-shadow:inset 0 0 45px #a8ffc41a,0 0 75px #a5ffb51c!important}
+.orb-halo{border-color:#c1e8d02b!important}
+.halo-one{border-left-color:#c7f4d5a8!important}
+.halo-two{border-color:#a5d9c13b!important}
+.halo-three{border-color:#d4f2d31b!important}
+.orb-scan{border-color:#d6f6dc2c!important;box-shadow:0 0 34px #a9ffbd1c!important}
+.orb-caption{top:calc(50% + min(22vh,205px))!important;color:#c5d8c8!important;text-shadow:0 0 12px #a9ffbd30!important}
+.voice-hint{color:#aebbb1!important}
+.keyboard-key{color:#d3e5d5!important;border-color:#9dbda555!important;background:#e4f1e808!important}
+.conversation{display:none!important;visibility:hidden!important;pointer-events:none!important}
+footer{color:#7f9083!important;border-color:#d8e9dc17!important}
+@keyframes refHaze{from{transform:translate3d(-1%,0,0) scale(1)}to{transform:translate3d(1.5%,-1%,0) scale(1.045)}}
+@media(max-width:760px){.orb-zone{height:min(43vh,350px)!important;width:100%!important}.orb{width:min(64vw,290px)!important;height:min(64vw,290px)!important}.orb-caption{top:calc(50% + min(21vh,160px))!important}}
+
+
+/* Computer control workspace */
+#computerBtn{margin-left:auto;margin-right:10px;white-space:nowrap}
+.computer-panel{position:absolute;z-index:12;inset:12px 0 12px;width:min(1180px,96vw);margin:auto;border:1px solid #65dcb34a;border-radius:16px;background:rgba(8,18,21,.97);box-shadow:0 24px 100px #000c;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto;backdrop-filter:blur(22px)}
+.computer-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.computer-head b{display:block;font:600 12px "Space Grotesk";letter-spacing:1.5px;color:#c9ffe9}.computer-head small{display:block;font-size:10px;color:#86b6a6;margin-top:4px}.computer-head-actions{display:flex;align-items:center;gap:10px}
+.computer-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(270px,1fr);gap:12px;min-height:0;flex:1}.screen-column,.control-column{min-width:0;display:flex;flex-direction:column;gap:10px}.screen-frame{position:relative;min-height:180px;flex:1;border:1px solid #65dcb333;border-radius:10px;overflow:hidden;background:#03080c;display:grid;place-items:center}.screen-frame img{width:100%;height:100%;max-height:58vh;object-fit:contain;cursor:crosshair}.screen-mode{position:absolute;right:9px;top:9px;background:#075f4d;color:#d8fff1;border:1px solid #5ce5bd77;border-radius:7px;padding:7px 9px;font-size:9px;letter-spacing:1px}.screen-mode.off{background:#37434a}.computer-tip,.computer-warning{font-size:10px;color:#91b5a9}.mouse-row,.key-grid{display:flex;gap:6px;flex-wrap:wrap}.mouse-row button,.key-grid button,.type-row button{border:1px solid #4fcaa44a;border-radius:7px;background:#0a2926;color:#c8f5e8;padding:8px 10px;font-size:9px;cursor:pointer}.control-column{overflow:auto}.control-card{border:1px solid #4fcaa42d;border-radius:9px;padding:10px;background:#ffffff06}.control-card>b{font:600 9px "Space Grotesk";letter-spacing:1.3px;color:#a8e9d2}.type-row{display:flex;gap:6px;margin-top:8px}.type-row input{min-width:0;flex:1;background:#071417;border:1px solid #4fcaa433;border-radius:7px;color:#e9fff7;padding:9px;font-size:11px}.key-grid{margin-top:8px}.active-window{font-size:10px;color:#b7d8cd;margin:8px 0}.file-list{max-height:180px;overflow:auto;margin-top:8px;display:grid;gap:5px}.file-item{display:flex;justify-content:space-between;align-items:center;gap:6px;color:#c8e6da;font-size:10px}.file-item button{background:#ffffff08;border:0;color:#bdebd9;padding:5px;cursor:pointer;font-size:9px;text-align:left}.file-item span{display:flex;gap:3px}.computer-warning{border-top:1px solid #4fcaa426;padding-top:9px}
+@media(max-width:760px){#computerBtn{font-size:8px;padding:7px}.computer-panel{inset:5px 0;width:100%;padding:10px}.computer-grid{grid-template-columns:1fr}.screen-frame img{max-height:34vh}.control-column{overflow:visible}.file-list{max-height:120px}.computer-head{align-items:flex-start}.computer-head-actions{gap:5px}}
+
+.ui-controls{display:flex;flex-wrap:wrap;gap:5px;max-height:150px;overflow:auto;margin-top:8px}.ui-controls>b{width:100%;font-size:10px;color:#c7f4e2}.ui-controls small{font-size:9px;color:#9bb7ac}.ui-control{background:#0b2926;border:1px solid #50caa344;color:#c9f5e6;border-radius:6px;padding:6px 8px;font-size:9px;cursor:pointer}
+
+.task-card{border:1px solid #4fcaa44a;border-radius:10px;background:#0a2524;padding:11px}.task-card>b{font:600 9px "Space Grotesk";letter-spacing:1.4px;color:#a8e9d2}.vision-summary{font-size:10px;color:#b5d7ca;margin:8px 0}.task-preview{display:grid;gap:5px;max-height:120px;overflow:auto;color:#d7eee4;font-size:10px}.task-preview p{margin:4px 0;color:#b9f4df}.plan-step{padding:5px 7px;border-radius:5px;background:#ffffff08}.execute-plan{margin-top:8px;border:1px solid #61e2ba77;border-radius:7px;background:#075d4a;color:#e2fff5;padding:9px 12px;font-size:9px;letter-spacing:1px}.execute-plan:disabled{opacity:.4;cursor:not-allowed}
+
+/* Holographic JARVIS interface — particle core, telemetry and cinematic starfield */
+:root{--line:rgba(74,210,255,.18);--cyan:#75eaff;--blue:#268cff}
+.backdrop{background:radial-gradient(ellipse at 50% 43%,#071c35 0%,#050c18 42%,#010409 100%)}
+.b1{background:#087dff;opacity:.14}.b2{background:#00b8c8;opacity:.12}
+.stars{opacity:.24;background-image:radial-gradient(#d9f5ff .7px,transparent 1px),radial-gradient(#54baff .6px,transparent 1px);background-size:43px 43px,79px 79px;background-position:0 0,21px 17px;animation:starDrift 65s linear infinite}
+.app-shell{width:min(100%,1440px)}
+.stage{position:relative;min-height:690px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden}
+.stage h1{font-size:clamp(30px,4vw,48px);letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 28px #37bfff44}
+.stage>p{letter-spacing:2px;text-transform:uppercase;font-size:10px;color:#81b7d1}
+.orb-zone{width:min(100%,900px);height:500px;display:grid;place-items:center;isolation:isolate}
+.orb{width:min(72vw,460px);height:min(72vw,460px);max-width:460px;max-height:460px;filter:hue-rotate(55deg) saturate(1.2);animation:coreColorCycle 18s ease-in-out infinite}
+.orb canvas{filter:drop-shadow(0 0 25px #168cff88) drop-shadow(0 0 70px #168cff33)}
+.orb:after{content:"";position:absolute;inset:7%;border-radius:50%;border:1px solid #8deaff28;box-shadow:0 0 35px #2c9dff22,inset 0 0 35px #2c9dff12;pointer-events:none}
+.orb-halo{border-color:#50cfff2b}.halo-one{width:490px;height:490px;border-left-color:#7beaffaa}.halo-two{width:540px;height:540px;border-color:#3a9cff44}.halo-three{width:590px;height:590px;border-color:#83dcff18}
+.orb-caption{top:calc(50% + 222px);color:#8ceaff;text-shadow:0 0 12px #2baaff}
+.core-hud{position:absolute;z-index:4;top:50%;transform:translateY(-50%);display:grid;gap:12px;min-width:160px;padding:15px 16px;border:1px solid #58cfff2b;background:linear-gradient(135deg,#061a2bcc,#06101c88);box-shadow:0 0 28px #168cff12,inset 0 0 22px #168cff0b;backdrop-filter:blur(10px);font:9px 'Space Grotesk';letter-spacing:1.4px;color:#77b8d5}
+.core-hud b{color:#b5efff;font-size:10px;letter-spacing:2px}.core-hud span{display:flex;justify-content:space-between;gap:14px}.core-hud strong{color:#72e9ff;font-weight:600}.core-hud small{font-size:8px;color:#527f9d}.core-hud i{width:6px;height:6px;border-radius:50%;background:#53ffc2;box-shadow:0 0 10px #53ffc2}.hud-left{left:2%;}.hud-right{right:2%;}
+.core-ring-label{position:absolute;bottom:9px;color:#477e9c;font:8px 'Space Grotesk';letter-spacing:3px}.core-ring-label i{color:#52dcff;font-style:normal}
+.voice-hint{color:#79a9c2;letter-spacing:.6px}.keyboard-key{border-color:#3b9ecb66;color:#9deaff;background:#0a2440}
+.conversation{border-color:#2e9bc744;background:linear-gradient(150deg,#061a2be0,#030b16ee);box-shadow:0 20px 70px #0009,inset 0 1px #9ceaff0b}.conversation-title{color:#9deaff}.conversation-sub{color:#638aa4}.composer{background:#020b15cc}.send-btn{background:linear-gradient(135deg,#168fff,#08b9c8);box-shadow:0 0 20px #168fff44}
+@keyframes coreColorCycle{0%,100%{filter:hue-rotate(55deg) saturate(1.35)}33%{filter:hue-rotate(190deg) saturate(1.45)}66%{filter:hue-rotate(300deg) saturate(1.5)}}
+@keyframes starDrift{from{background-position:0 0,21px 17px}to{background-position:430px 260px,-300px 370px}}
+.orb.listening{animation:orbPulse 1.4s ease-in-out infinite,coreListenTint 1.4s ease-in-out infinite}.orb.speaking{animation:orbSpeak .65s ease-in-out infinite alternate,coreSpeakTint .65s ease-in-out infinite alternate}
+@keyframes coreListenTint{50%{filter:hue-rotate(80deg) saturate(1.8)}}@keyframes coreSpeakTint{to{filter:hue-rotate(165deg) saturate(1.8)}}
+@media(max-width:900px){.stage{min-height:590px}.orb-zone{height:390px}.orb{width:min(74vw,340px);height:min(74vw,340px)}.halo-one{width:370px;height:370px}.halo-two{width:410px;height:410px}.halo-three{width:450px;height:450px}.orb-caption{top:calc(50% + 165px)}.core-hud{top:auto;bottom:4px;transform:none;min-width:130px;padding:10px;gap:7px}.hud-left{left:0}.hud-right{right:0}.core-ring-label{display:none}}
+@media(max-width:520px){.core-hud{font-size:7px;min-width:112px;letter-spacing:.7px}.core-hud b{font-size:8px}.core-hud small{font-size:6px}.orb-zone{height:360px}.halo-one{width:300px;height:300px}.halo-two{width:330px;height:330px}.halo-three{width:360px;height:360px}.orb-caption{top:calc(50% + 145px)}}
