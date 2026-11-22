@@ -153,3 +153,7 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
  $("#browseFiles").onclick=()=>browse($("#filePath").value.trim());
  $("#filePath").addEventListener("keydown",e=>{if(e.key==="Enter")browse($("#filePath").value.trim())});
 })();
+
+
+// Holographic HUD telemetry follows the live JARVIS voice state.
+(()=>{const orb=document.getElementById("mic"),voice=document.getElementById("hudVoice"),load=document.getElementById("hudLoad");if(!orb||!voice||!load)return;const sync=()=>{const s=document.getElementById("state")?.textContent||"STANDBY";voice.textContent=s.includes("LISTEN")?"LISTENING":s.includes("SPEAK")?"SPEAKING":s.includes("THINK")?"PROCESSING":"IDLE";load.textContent=s.includes("THINK")?"COMPUTING":s.includes("SPEAK")?"OUTPUT ACTIVE":"READY"};new MutationObserver(sync).observe(document.getElementById("state"),{childList:true,subtree:true,characterData:true});sync()})();
