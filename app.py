@@ -102,10 +102,15 @@ def computer_status():
     import pyautogui, psutil
     active=""
     try:
-        from pywinauto import Desktop
-        win=Desktop(backend="uia").get_active()
-        active=win.window_text()[:240] if win else ""
-    except Exception: pass
+        import win32gui
+        hwnd=win32gui.GetForegroundWindow()
+        active=win32gui.GetWindowText(hwnd)[:240] if hwnd else ""
+    except Exception:
+        try:
+            from pywinauto import Desktop
+            win=Desktop(backend="uia").get_active()
+            active=win.window_text()[:240] if win else ""
+        except Exception: pass
     running=[]
     for proc in psutil.process_iter(["name","pid","memory_info"]):
         try:
@@ -160,13 +165,25 @@ def computer_action(data):
         keys=data.get("keys",[])
         allowed={("ctrl","a"),("ctrl","c"),("ctrl","v"),("ctrl","x"),("ctrl","z"),("ctrl","y"),
                  ("ctrl","s"),("ctrl","f"),("ctrl","p"),("ctrl","t"),("ctrl","w"),
-                 ("ctrl","shift","t"),("alt","tab"),("alt","left"),("alt","right"),
+                 ("ctrl","shift","t"),("ctrl","l"),("alt","tab"),("alt","left"),("alt","right"),
                  ("win","e"),("win","d"),("win","r")}
         normalized=tuple(str(k).lower() for k in keys)
         if normalized not in allowed: raise ValueError("That keyboard shortcut is not on the approved list.")
         pyautogui.hotkey(*normalized)
         return {"ok":True,"action":"hotkey","keys":list(normalized)}
     raise ValueError("Unknown computer action.")
+
+def open_website(url):
+    import webbrowser
+    from urllib.parse import urlparse
+    if not isinstance(url,str) or len(url)>2000: raise ValueError("Enter a valid website address.")
+    value=url.strip()
+    if not re.match(r"^https?://",value,re.I): value="https://"+value
+    parsed=urlparse(value)
+    if parsed.scheme not in ("http","https") or not parsed.netloc or parsed.username or parsed.password:
+        raise ValueError("Only normal HTTP or HTTPS website addresses are allowed.")
+    webbrowser.open(value,new=2)
+    return {"ok":True,"url":value}
 
 def browse_path(raw):
     if not isinstance(raw,str) or not raw.strip(): raw=str(Path.home())
@@ -205,6 +222,194 @@ def manage_file(data):
         from send2trash import send2trash
         send2trash(str(source)); return {"ok":True,"message":"Sent "+source.name+" to the Recycle Bin."}
     raise ValueError("Unknown file operation.")
+
+
+def inspect_ui(window_title=""):
+    from pywinauto import Desktop
+    desktop=Desktop(backend="uia")
+    wins=desktop.windows(visible_only=True,enabled_only=True)
+    selected=None
+    wanted=str(window_title or "").strip().lower()
+    for win in wins:
+        try:
+            title=win.window_text().strip()
+            if wanted and wanted in title.lower(): selected=win; break
+        except Exception: pass
+    if selected is None and not wanted:
+        try:
+            import win32gui
+            title=win32gui.GetWindowText(win32gui.GetForegroundWindow()).strip().lower()
+            selected=next((w for w in wins if title and title in w.window_text().strip().lower()),None)
+        except Exception: pass
+        if selected is None:
+            try: selected=desktop.get_active()
+            except Exception: pass
+    if selected is None:
+        return {"window":None,"controls":[],"windows":[w.window_text()[:160] for w in wins if w.window_text().strip()][:30]}
+    controls=[]
+    for item in selected.descendants():
+        try:
+            name=item.window_text().strip()
+            ctype=item.element_info.control_type
+            if name and ctype in ("Button","Edit","Text","MenuItem","TabItem","ListItem","ComboBox","CheckBox","RadioButton","Hyperlink"):
+                rect=item.rectangle()
+                controls.append({"name":name[:180],"type":ctype,"enabled":item.is_enabled(),
+                                 "rect":{"left":rect.left,"top":rect.top,"right":rect.right,"bottom":rect.bottom}})
+            if len(controls)>=120: break
+        except Exception: pass
+    try: title=selected.window_text()[:240]
+    except Exception: title=""
+    return {"window":title,"controls":controls,"windows":[w.window_text()[:160] for w in wins if w.window_text().strip()][:30]}
+
+def ui_click_control(window_title, control_name):
+    from pywinauto import Desktop
+    if not isinstance(control_name,str) or not control_name.strip(): raise ValueError("Enter the exact button or control name.")
+    wins=Desktop(backend="uia").windows(visible_only=True,enabled_only=True)
+    wanted=str(window_title or "").strip().lower()
+    win=next((w for w in wins if wanted in w.window_text().lower()),None) if wanted else Desktop(backend="uia").get_active()
+    if win is None: raise ValueError("That application window was not found.")
+    target=control_name.strip().lower()
+    matches=[]
+    for item in win.descendants():
+        try:
+            if item.is_enabled() and item.window_text().strip().lower()==target:
+                matches.append(item)
+        except Exception: pass
+    if len(matches)!=1: raise ValueError("The control name must match exactly one visible, enabled control. Found "+str(len(matches))+".")
+    matches[0].click_input()
+    return {"ok":True,"window":win.window_text()[:180],"control":control_name}
+
+
+def capture_screen_jpeg():
+    import pyautogui
+    image=pyautogui.screenshot()
+    image.thumbnail((1280,800))
+    image_size=image.size
+    out=io.BytesIO(); image.save(out,format="JPEG",quality=76,optimize=True)
+    return out.getvalue(),pyautogui.size(),image_size
+
+def ask_vision(prompt, max_tokens=500):
+    import base64
+    image,screen,image_size=capture_screen_jpeg()
+    with MODEL_LOCK: selected=MODEL
+    payload={"model":selected,"messages":[{"role":"user","content":[
+        {"type":"text","text":prompt},
+        {"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+base64.b64encode(image).decode("ascii")}}
+    ]}],"temperature":0.1,"max_tokens":max_tokens,"reasoning_effort":"none"}
+    req=urllib.request.Request(LM_URL+"/v1/chat/completions",data=json.dumps(payload).encode(),
+                               headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)
+    message=result.get("choices",[{}])[0].get("message",{})
+    answer=message.get("content","")
+    if not isinstance(answer,str) or not answer.strip():
+        raise RuntimeError("The local vision model returned no description.")
+    return answer.strip(),selected,screen,image_size
+
+def validate_computer_steps(steps):
+    import pyautogui
+    if not isinstance(steps,list) or not 1<=len(steps)<=12: raise ValueError("A plan must contain between 1 and 12 steps.")
+    width,height=pyautogui.size()
+    allowed_keys={"enter","tab","esc","escape","space","backspace","delete","up","down","left","right","home","end","pageup","pagedown","f1","f2","f3","f4","f5","f6","f10","f11","f12"}
+    allowed_hotkeys={("ctrl","a"),("ctrl","c"),("ctrl","v"),("ctrl","x"),("ctrl","z"),("ctrl","y"),("ctrl","s"),("ctrl","f"),("ctrl","p"),("ctrl","t"),("ctrl","w"),("ctrl","shift","t"),("ctrl","l"),("alt","tab"),("alt","left"),("alt","right"),("win","e"),("win","d"),("win","r")}
+    clean=[]
+    for step in steps:
+        if not isinstance(step,dict): raise ValueError("Each plan step must be an object.")
+        action=step.get("action")
+        if action in ("click","double_click","right_click","scroll"):
+            x=step.get("x",width//2); y=step.get("y",height//2)
+            if not isinstance(x,int) or not isinstance(y,int) or not (0<=x<width and 0<=y<height): raise ValueError("The plan contains coordinates outside the screen.")
+            item={"action":action,"x":x,"y":y}
+            if action=="scroll":
+                amount=step.get("amount",-4)
+                if not isinstance(amount,int) or not -12<=amount<=12: raise ValueError("Invalid scroll amount.")
+                item["amount"]=amount
+        elif action=="type":
+            value=step.get("text","")
+            if not isinstance(value,str) or not value or len(value)>1200: raise ValueError("Typed text must contain 1 to 1200 characters.")
+            item={"action":"type","text":value}
+        elif action=="press":
+            key=str(step.get("key","")).lower()
+            if key not in allowed_keys: raise ValueError("The plan contains a disallowed key.")
+            item={"action":"press","key":key}
+        elif action=="hotkey":
+            keys=tuple(str(k).lower() for k in step.get("keys",[]))
+            if keys not in allowed_hotkeys: raise ValueError("The plan contains a disallowed shortcut.")
+            item={"action":"hotkey","keys":list(keys)}
+        elif action=="open_url":
+            url=step.get("url","")
+            if not isinstance(url,str) or len(url)>2000: raise ValueError("Invalid website address.")
+            from urllib.parse import urlparse
+            if not urlparse(url if url.startswith(("http://","https://")) else "https://"+url).netloc: raise ValueError("Invalid website address.")
+            item={"action":"open_url","url":url}
+        elif action=="wait":
+            seconds=step.get("seconds",1)
+            if not isinstance(seconds,int) or not 1<=seconds<=5: raise ValueError("Wait steps must be 1 to 5 seconds.")
+            item={"action":"wait","seconds":seconds}
+        else: raise ValueError("Unsupported action in the proposed plan: "+str(action))
+        clean.append(item)
+    return clean
+
+def create_computer_plan(task):
+    if not isinstance(task,str) or not task.strip() or len(task)>700: raise ValueError("Describe a computer task up to 700 characters.")
+    prompt=("You are JARVIS, a Windows computer-use planner. Examine the screenshot and plan the user's requested task. "
+    "Return ONLY valid JSON, no markdown, with schema {\"summary\":\"short summary\",\"steps\":[...]}. "
+    "Allowed step objects: {\"action\":\"click\",\"x\":integer,\"y\":integer}; "
+    "{\"action\":\"double_click\",\"x\":integer,\"y\":integer}; "
+    "{\"action\":\"right_click\",\"x\":integer,\"y\":integer}; "
+    "{\"action\":\"scroll\",\"x\":integer,\"y\":integer,\"amount\":integer}; "
+    "{\"action\":\"type\",\"text\":\"...\"}; {\"action\":\"press\",\"key\":\"enter|tab|esc|...\"}; "
+    "{\"action\":\"hotkey\",\"keys\":[\"ctrl\",\"l\"]} only use common approved shortcuts; "
+    "{\"action\":\"open_url\",\"url\":\"https://...\"}; {\"action\":\"wait\",\"seconds\":1}. "
+    "The image is a resized preview; use coordinates relative to the visible image dimensions (1280x720 on a 2560x1440 screen). " 
+    "For browser navigation, always start with hotkey ctrl+l, then type the URL, then press enter. "
+    "Use only controls clearly visible. "
+    "Never enter passwords, payment data, or private credentials. Do not purchase, send messages, delete files, "
+    "change security settings, or approve prompts. If the task is risky, unclear, or impossible from this screen, "
+    "return an empty steps array and explain in summary. Limit to 12 steps. "
+    'Example output: {"summary":"Open example.com","steps":[{"action":"hotkey","keys":["ctrl","l"]},{"action":"type","text":"example.com"},{"action":"press","key":"enter"}]}. '
+    "Every step MUST be an object with an action field, never a plain string. User task: "+task.strip())
+    answer,model,screen,image_size=ask_vision(prompt,650)
+    match=re.search(r"\{[\s\S]*\}",answer)
+    if not match: raise RuntimeError("The vision model did not return a valid JSON plan.")
+    plan=json.loads(match.group(0))
+    raw_steps=plan.get("steps",[])
+    if raw_steps==[]: steps=[]
+    else:
+        # Normalize simple natural-language steps if the model ignores the JSON-object example.
+        normalized=[]
+        for step in raw_steps:
+            if isinstance(step,dict): normalized.append(dict(step)); continue
+            if not isinstance(step,str): raise ValueError("The model returned an unsupported plan step.")
+            line=step.strip().lower()
+            shortcut=re.search(r"ctrl\s*\+\s*l",line)
+            typed=re.search(r"(?:type|enter)\s+(?:the\s+)?(?:url\s+)?(.+?)(?:\s+into\s+the\s+.+)?[.!]?$",line)
+            pressed=re.search(r"press\s+(enter|tab|esc|escape|space|backspace|delete|up|down|left|right)[.!]?",line)
+            if shortcut: normalized.append({"action":"hotkey","keys":["ctrl","l"]})
+            elif pressed: normalized.append({"action":"press","key":pressed.group(1)})
+            elif typed: normalized.append({"action":"type","text":typed.group(1).strip().strip("\\\"'")})
+            else: raise ValueError("The model returned a plan step that could not be safely understood: "+step[:100])
+        # The vision model sees a downscaled preview; convert its coordinates back to desktop pixels.
+        scaled=[]
+        for step in normalized:
+            item=dict(step)
+            if item.get("action") in ("click","double_click","right_click","scroll"):
+                item["x"]=round(item.get("x",0)*screen.width/image_size[0])
+                item["y"]=round(item.get("y",0)*screen.height/image_size[1])
+            scaled.append(item)
+        steps=validate_computer_steps(scaled)
+    return {"summary":str(plan.get("summary","Computer task plan"))[:300],"steps":steps,"model":model,
+            "screen":{"width":screen.width,"height":screen.height},"preview":{"width":image_size[0],"height":image_size[1]}}
+
+def execute_computer_plan(steps):
+    clean=validate_computer_steps(steps)
+    results=[]
+    for step in clean:
+        action=step["action"]
+        if action=="wait": time.sleep(step["seconds"]); result={"ok":True,"action":"wait"}
+        elif action=="open_url": result=open_website(step["url"])
+        else: result=computer_action(step)
+        results.append(result)
+    return {"ok":True,"completed":len(results),"results":results}
 
 def get_models():
     with urllib.request.urlopen(LM_URL+"/v1/models",timeout=4) as r: data=json.load(r)
@@ -247,6 +452,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e: d["error"]=str(e)
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
         if self.path=="/api/voice/status": return self.send_json(200,{"provider":"ElevenLabs","voice":"George - Warm British Baritone","voice_id":ELEVENLABS_VOICE_ID,"configured":bool(ELEVENLABS_API_KEY)})
+        if self.path=="/api/computer/vision":
+            try:
+                answer,model,screen,image_size=ask_vision("Describe the visible Windows desktop and identify the foreground application and its most important visible controls. Be concise.",350)
+                return self.send_json(200,{"description":answer,"model":model,"screen":{"width":screen.width,"height":screen.height}})
+            except Exception as e: return self.send_json(503,{"error":"Screen understanding unavailable: "+str(e)})
+        if self.path=="/api/computer/inspect":
+            try: return self.send_json(200,inspect_ui(self.headers.get("X-Jarvis-Window","")))
+            except Exception as e: return self.send_json(503,{"error":"UI inspection unavailable: "+str(e)})
         if self.path=="/api/computer/status":
             try: return self.send_json(200,computer_status())
             except Exception as e: return self.send_json(503,{"error":"Computer status unavailable: "+str(e)})
@@ -295,6 +508,23 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_response(200); self.send_header("Content-Type","audio/mpeg"); self.send_header("Content-Length",str(len(audio))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(audio); return
             except urllib.error.HTTPError as e: return self.send_json(502,{"error":"ElevenLabs request failed (HTTP "+str(e.code)+"): "+e.read().decode(errors="replace")[:300]})
             except Exception as e: return self.send_json(503,{"error":"ElevenLabs speech unavailable: "+str(e)})
+        if self.path=="/api/computer/plan":
+            try: return self.send_json(200,create_computer_plan(data.get("task","")))
+            except ValueError as e: return self.send_json(400,{"error":str(e)})
+            except Exception as e: return self.send_json(503,{"error":"Could not create a computer plan: "+str(e)})
+        if self.path=="/api/computer/execute-plan":
+            if data.get("confirm") is not True: return self.send_json(409,{"confirmation_required":True,"error":"Review and confirm the plan before execution."})
+            try: return self.send_json(200,execute_computer_plan(data.get("steps",[])))
+            except ValueError as e: return self.send_json(400,{"error":str(e)})
+            except Exception as e: return self.send_json(503,{"error":"Plan execution stopped: "+str(e)})
+        if self.path=="/api/computer/ui-action":
+            try: return self.send_json(200,ui_click_control(data.get("window",""),data.get("control","")))
+            except ValueError as e: return self.send_json(400,{"error":str(e)})
+            except Exception as e: return self.send_json(503,{"error":"UI action failed: "+str(e)})
+        if self.path=="/api/computer/open-url":
+            try: return self.send_json(200,open_website(data.get("url","")))
+            except ValueError as e: return self.send_json(400,{"error":str(e)})
+            except Exception as e: return self.send_json(503,{"error":"Could not open website: "+str(e)})
         if self.path=="/api/computer/action":
             try: return self.send_json(200,computer_action(data))
             except ValueError as e: return self.send_json(400,{"error":str(e)})
