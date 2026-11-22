@@ -87,3 +87,30 @@ footer{color:#7f9083!important;border-color:#d8e9dc17!important}
 .ui-controls{display:flex;flex-wrap:wrap;gap:5px;max-height:150px;overflow:auto;margin-top:8px}.ui-controls>b{width:100%;font-size:10px;color:#c7f4e2}.ui-controls small{font-size:9px;color:#9bb7ac}.ui-control{background:#0b2926;border:1px solid #50caa344;color:#c9f5e6;border-radius:6px;padding:6px 8px;font-size:9px;cursor:pointer}
 
 .task-card{border:1px solid #4fcaa44a;border-radius:10px;background:#0a2524;padding:11px}.task-card>b{font:600 9px "Space Grotesk";letter-spacing:1.4px;color:#a8e9d2}.vision-summary{font-size:10px;color:#b5d7ca;margin:8px 0}.task-preview{display:grid;gap:5px;max-height:120px;overflow:auto;color:#d7eee4;font-size:10px}.task-preview p{margin:4px 0;color:#b9f4df}.plan-step{padding:5px 7px;border-radius:5px;background:#ffffff08}.execute-plan{margin-top:8px;border:1px solid #61e2ba77;border-radius:7px;background:#075d4a;color:#e2fff5;padding:9px 12px;font-size:9px;letter-spacing:1px}.execute-plan:disabled{opacity:.4;cursor:not-allowed}
+
+/* Holographic JARVIS interface — particle core, telemetry and cinematic starfield */
+:root{--line:rgba(74,210,255,.18);--cyan:#75eaff;--blue:#268cff}
+.backdrop{background:radial-gradient(ellipse at 50% 43%,#071c35 0%,#050c18 42%,#010409 100%)}
+.b1{background:#087dff;opacity:.14}.b2{background:#00b8c8;opacity:.12}
+.stars{opacity:.24;background-image:radial-gradient(#d9f5ff .7px,transparent 1px),radial-gradient(#54baff .6px,transparent 1px);background-size:43px 43px,79px 79px;background-position:0 0,21px 17px;animation:starDrift 65s linear infinite}
+.app-shell{width:min(100%,1440px)}
+.stage{position:relative;min-height:690px;display:flex;flex-direction:column;justify-content:center;align-items:center;overflow:hidden}
+.stage h1{font-size:clamp(30px,4vw,48px);letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 28px #37bfff44}
+.stage>p{letter-spacing:2px;text-transform:uppercase;font-size:10px;color:#81b7d1}
+.orb-zone{width:min(100%,900px);height:500px;display:grid;place-items:center;isolation:isolate}
+.orb{width:min(72vw,460px);height:min(72vw,460px);max-width:460px;max-height:460px;filter:hue-rotate(55deg) saturate(1.2);animation:coreColorCycle 18s ease-in-out infinite}
+.orb canvas{filter:drop-shadow(0 0 25px #168cff88) drop-shadow(0 0 70px #168cff33)}
+.orb:after{content:"";position:absolute;inset:7%;border-radius:50%;border:1px solid #8deaff28;box-shadow:0 0 35px #2c9dff22,inset 0 0 35px #2c9dff12;pointer-events:none}
+.orb-halo{border-color:#50cfff2b}.halo-one{width:490px;height:490px;border-left-color:#7beaffaa}.halo-two{width:540px;height:540px;border-color:#3a9cff44}.halo-three{width:590px;height:590px;border-color:#83dcff18}
+.orb-caption{top:calc(50% + 222px);color:#8ceaff;text-shadow:0 0 12px #2baaff}
+.core-hud{position:absolute;z-index:4;top:50%;transform:translateY(-50%);display:grid;gap:12px;min-width:160px;padding:15px 16px;border:1px solid #58cfff2b;background:linear-gradient(135deg,#061a2bcc,#06101c88);box-shadow:0 0 28px #168cff12,inset 0 0 22px #168cff0b;backdrop-filter:blur(10px);font:9px 'Space Grotesk';letter-spacing:1.4px;color:#77b8d5}
+.core-hud b{color:#b5efff;font-size:10px;letter-spacing:2px}.core-hud span{display:flex;justify-content:space-between;gap:14px}.core-hud strong{color:#72e9ff;font-weight:600}.core-hud small{font-size:8px;color:#527f9d}.core-hud i{width:6px;height:6px;border-radius:50%;background:#53ffc2;box-shadow:0 0 10px #53ffc2}.hud-left{left:2%;}.hud-right{right:2%;}
+.core-ring-label{position:absolute;bottom:9px;color:#477e9c;font:8px 'Space Grotesk';letter-spacing:3px}.core-ring-label i{color:#52dcff;font-style:normal}
+.voice-hint{color:#79a9c2;letter-spacing:.6px}.keyboard-key{border-color:#3b9ecb66;color:#9deaff;background:#0a2440}
+.conversation{border-color:#2e9bc744;background:linear-gradient(150deg,#061a2be0,#030b16ee);box-shadow:0 20px 70px #0009,inset 0 1px #9ceaff0b}.conversation-title{color:#9deaff}.conversation-sub{color:#638aa4}.composer{background:#020b15cc}.send-btn{background:linear-gradient(135deg,#168fff,#08b9c8);box-shadow:0 0 20px #168fff44}
+@keyframes coreColorCycle{0%,100%{filter:hue-rotate(55deg) saturate(1.35)}33%{filter:hue-rotate(190deg) saturate(1.45)}66%{filter:hue-rotate(300deg) saturate(1.5)}}
+@keyframes starDrift{from{background-position:0 0,21px 17px}to{background-position:430px 260px,-300px 370px}}
+.orb.listening{animation:orbPulse 1.4s ease-in-out infinite,coreListenTint 1.4s ease-in-out infinite}.orb.speaking{animation:orbSpeak .65s ease-in-out infinite alternate,coreSpeakTint .65s ease-in-out infinite alternate}
+@keyframes coreListenTint{50%{filter:hue-rotate(80deg) saturate(1.8)}}@keyframes coreSpeakTint{to{filter:hue-rotate(165deg) saturate(1.8)}}
+@media(max-width:900px){.stage{min-height:590px}.orb-zone{height:390px}.orb{width:min(74vw,340px);height:min(74vw,340px)}.halo-one{width:370px;height:370px}.halo-two{width:410px;height:410px}.halo-three{width:450px;height:450px}.orb-caption{top:calc(50% + 165px)}.core-hud{top:auto;bottom:4px;transform:none;min-width:130px;padding:10px;gap:7px}.hud-left{left:0}.hud-right{right:0}.core-ring-label{display:none}}
+@media(max-width:520px){.core-hud{font-size:7px;min-width:112px;letter-spacing:.7px}.core-hud b{font-size:8px}.core-hud small{font-size:6px}.orb-zone{height:360px}.halo-one{width:300px;height:300px}.halo-two{width:330px;height:330px}.halo-three{width:360px;height:360px}.orb-caption{top:calc(50% + 145px)}}
