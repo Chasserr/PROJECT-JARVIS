@@ -3,3 +3,5 @@ __pycache__/
 .env
 .venv/
 .DS_Store
+jarvis_memory.sqlite3
+jarvis_memory.sqlite3-*
