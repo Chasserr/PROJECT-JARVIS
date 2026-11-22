@@ -142,3 +142,6 @@ main{display:block!important;padding:0!important;margin:0!important;min-height:1
 .orb.listening{filter:drop-shadow(0 0 30px #21cfff66)!important}
 .orb.speaking{filter:drop-shadow(0 0 35px #8d75ff77)!important}
 @media(max-width:600px){.orb{width:min(78vw,350px)!important;height:min(78vw,350px)!important}.halo-one{width:84vw!important;height:84vw!important}.halo-two{width:94vw!important;height:94vw!important}.halo-three{width:104vw!important;height:104vw!important}.wake-bubble{top:calc(50% + 42vw)}}
+
+/* Keep the particle sphere in the reference video's blue/cyan palette. */
+.orb{animation:none!important}
