@@ -1,1 +1,48 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080a0f"><title>JARVIS — Local AI Assistant</title><link rel="stylesheet" href="/style.css"></head><body><div class="ambient"></div><header><div class="brand"><span class="brand-mark">J</span><div><b>JARVIS</b><small>PERSONAL AI SYSTEM</small></div></div><div class="status"><i id="statusDot"></i><span id="statusText">CONNECTING</span></div></header><main><section class="hero"><div class="eyebrow">LOCAL INTELLIGENCE · PRIVATE BY DESIGN</div><h1>Your assistant.<br><em>Your machine.</em></h1><p>Talk naturally. Get things done. Powered by your local Gemma model.</p></section><section class="core"><div class="orb-wrap"><div class="ring ring-a"></div><div class="ring ring-b"></div><button id="mic" class="orb" aria-label="Start voice input"><span class="orb-core"></span><span class="orb-glow"></span></button></div><div id="state" class="state">SYSTEM STANDBY</div><div class="hint">Tap orb to speak · or enable wake word and say “Hey Jarvis”</div><button id="wakeToggle" class="wake-toggle">ENABLE WAKE WORD</button></section><section class="workspace"><div class="chat-head"><span>CONVERSATION</span><button id="clear" class="ghost">CLEAR</button></div><div id="messages" class="messages"><div class="welcome">JARVIS is ready. Ask me anything.</div></div><form id="chatForm"><input id="prompt" autocomplete="off" placeholder="Give me a command..." aria-label="Message JARVIS"><button class="send" type="submit">SEND ↗</button></form></section><section class="memory"><div class="memory-head"><b>PERSONAL MEMORY</b><span id="memoryCount">0 SAVED</span></div><div class="memory-add"><input id="memoryInput" maxlength="500" placeholder="Save something JARVIS should remember..."><button id="saveMemory">SAVE</button></div><div id="memoryList" class="memory-list"></div></section><section class="tools"><div class="tool-title">QUICK ACTIONS <span>APPROVED CONTROLS</span></div><label class="model-picker">MODEL <select id="modelSelect"><option>Loading…</option></select></label><button data-action="notepad">＋ Notepad</button><button data-action="calculator">＋ Calculator</button><button data-action="file_explorer">＋ Files</button><button data-action="browser">＋ Browser</button></section><footer><span>JARVIS LOCAL BUILD · OPEN SOURCE</span><span id="modelLabel">MODEL: CHECKING</span></footer></main><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080b16"><title>JARVIS — Voice Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="backdrop"><div class="blur b1"></div><div class="blur b2"></div><div class="stars"></div></div>
+<div class="app-shell">
+<header class="topbar">
+  <div class="brand"><div class="brand-icon">J<span></span></div><div><strong>JARVIS</strong><small>PERSONAL AI</small></div></div>
+  <div class="top-status"><i id="statusDot"></i><span id="statusText">CONNECTING</span><span class="status-divider"></span><span class="privacy"><i></i> LOCAL & PRIVATE</span></div>
+  <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">☷</button>
+</header>
+<main>
+<section class="stage">
+  <div class="stage-kicker"><span class="pulse-dot"></span> YOUR PERSONAL ASSISTANT</div>
+  <h1 id="headline">I'm here<span>.</span></h1>
+  <p id="subheadline">Say “Jarvis” or tap the orb to start a conversation.</p>
+  <div class="orb-zone">
+    <div class="orb-halo halo-one"></div><div class="orb-halo halo-two"></div><div class="orb-halo halo-three"></div>
+    <button id="mic" class="orb" aria-label="Start voice conversation"><span class="orb-shine"></span><span class="orb-core"></span><span class="orb-wave"></span></button>
+    <div class="orb-caption" id="state">STANDING BY</div>
+  </div>
+  <div class="voice-hint"><span class="keyboard-key">MIC</span> Tap to speak <span class="hint-dot">·</span> <span id="wakeHint">Wake phrase ready: “Open Jarvis”</span></div>
+</section>
+<section class="conversation">
+  <div class="conversation-head"><div><span class="conversation-title">CONVERSATION</span><span class="conversation-sub">Your private session</span></div><button id="clear" class="text-btn">CLEAR CHAT</button></div>
+  <div id="messages" class="messages"><div class="empty-state"><div class="empty-mark">✦</div><div><b>Your conversation starts here</b><span>Ask a question, give a command, or speak naturally.</span></div></div></div>
+  <form id="chatForm" class="composer"><button type="button" id="attach" class="plus-btn" title="Quick actions">＋</button><input id="prompt" autocomplete="off" placeholder="Message JARVIS…" aria-label="Message JARVIS"><button class="send-btn" type="submit" aria-label="Send message">↑</button></form>
+</section>
+<section id="settings" class="settings-panel hidden">
+ <div class="settings-title">ASSISTANT SETTINGS <button id="closeSettings" class="text-btn">CLOSE</button></div>
+ <label class="setting-row"><span><b>Wake phrase</b><small>Say “Open Jarvis”, “Hey Jarvis”, “Wake up Jarvis” or “Jarvis”.</small></span><button id="wakeToggle" class="switch on" aria-label="Toggle wake phrase"><i></i></button></label>
+ <label class="setting-row"><span><b>AI model</b><small>Choose an installed local Gemma model.</small></span><select id="modelSelect"><option>Loading…</option></select></label>
+ <div class="setting-row memory-setting"><span><b>Personal memory</b><small>Save details for future conversations on this PC.</small></span><button id="memoryToggle" class="small-btn">MANAGE</button></div>
+ <div id="memoryArea" class="memory-area hidden"><div class="memory-add"><input id="memoryInput" maxlength="500" placeholder="What should JARVIS remember?"><button id="saveMemory" class="small-btn">SAVE</button></div><div id="memoryList" class="memory-list"></div></div>
+ <div class="quick-actions"><b>QUICK ACTIONS</b><div><button data-action="notepad">Notepad</button><button data-action="calculator">Calculator</button><button data-action="file_explorer">Files</button><button data-action="browser">Browser</button></div></div>
+ <div class="settings-foot">JARVIS runs locally on this PC. Your saved memories stay on this device.</div>
+</section>
+</main>
+<footer><span>POWERED BY YOUR LOCAL AI</span><span id="modelLabel">MODEL: CONNECTING</span></footer>
+</div>
+<script src="/app.js"></script>
+</body></html>
