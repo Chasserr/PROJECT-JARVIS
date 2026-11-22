@@ -162,3 +162,6 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
 
 // One-click cinematic presentation mode; all assistant controls remain available when exited.
 (()=>{const btn=document.getElementById("cinemaBtn");if(!btn)return;btn.addEventListener("click",()=>{document.body.classList.toggle("cinematic");btn.textContent=document.body.classList.contains("cinematic")?"EXIT CINEMATIC":"CINEMATIC VIEW"})})();
+
+/* Wake-word bubble: the idle screen stays clean; the bubble appears only during interaction. */
+(()=>{const zone=document.querySelector(".orb-zone");if(!zone)return;let bubble=document.getElementById("wakeBubble");if(!bubble){bubble=document.createElement("div");bubble.id="wakeBubble";bubble.className="wake-bubble";bubble.setAttribute("aria-live","polite");zone.appendChild(bubble)}const state=document.getElementById("state");const sync=()=>{const s=(state?.textContent||"").toUpperCase();let label="";if(s.includes("LISTEN"))label="LISTENING";else if(s.includes("THINK"))label="THINKING";else if(s.includes("SPEAK"))label="SPEAKING";if(label){bubble.textContent=label;bubble.classList.add("visible")}else bubble.classList.remove("visible")};if(state){new MutationObserver(sync).observe(state,{childList:true,subtree:true,characterData:true});sync()}document.title="JARVIS";})();
