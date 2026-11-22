@@ -51,7 +51,7 @@ The background PowerShell listener recognizes: Open Jarvis, Hey Jarvis, Okay Jar
 Saved notes and reminders are stored in jarvis_memory.sqlite3 beside app.py. The database is intentionally excluded from Git.
 
 ## Security and privacy
-The HTTP server binds to 127.0.0.1 and is intended for local use only. Do not expose it to a LAN, reverse proxy or public internet without authentication, CSRF protection, authorization, rate limiting and a hardened deployment design. API keys are read from Windows user environment variables and must never be committed. PC Control sends screenshots and input actions only to the local JARVIS server.
+The HTTP server binds to 127.0.0.1, validates local Host/Origin headers and JSON write requests, and is intended for local use only. Do not expose it to a LAN, reverse proxy or public internet without authentication, CSRF protection, authorization, rate limiting and a hardened deployment design. API keys are read from Windows user environment variables and must never be committed. PC Control sends screenshots and input actions only to the local JARVIS server.
 
 ## License
 MIT ? see LICENSE.
