@@ -9,7 +9,8 @@ A free-first, local-first Windows desktop assistant powered by LM Studio and loc
 - SQLite personal memory and local reminders
 - Switching between installed Gemma 4 models
 - Allowlisted quick actions for Notepad, Calculator, File Explorer and browser
-- PC Control workspace: live desktop screenshot, coordinate-based mouse clicks, double/right clicks, scrolling, keyboard typing and an approved shortcut set
+- PC Control workspace: live desktop screenshot, local Gemma 4 visual understanding, UI Automation inspection, coordinate-based mouse clicks, double/right clicks, scrolling, keyboard typing and an approved shortcut set
+- AI Computer Operator: screenshot-grounded multi-step plans, previewed for review and executed only after explicit approval
 - File Explorer workspace: browse folders, open files, rename items and send items to the Windows Recycle Bin
 - Windows status view with active-window information and running-process inventory
 - Server binds to 127.0.0.1 only
@@ -37,10 +38,11 @@ Install Python dependencies from the project folder:
 - Refresh Screen captures the current Windows desktop. Click a location in the preview to click the same location on the PC.
 - Use the keyboard field to type into the currently focused application.
 - Shortcut buttons are intentionally allowlisted; dangerous system shortcuts and arbitrary shell execution are not exposed.
+- Ask JARVIS to plan a task in the AI Computer Operator panel. It uses a local screenshot and local Gemma 4 model to prepare up to 12 actions. Review the plan and press EXECUTE APPROVED PLAN to run it. Voice commands can start a plan with ?plan computer task: ??.
 - Browse a folder by entering its path. Open files/folders, rename items, or send files to the Recycle Bin. Trash operations require confirmation.
 - PyAutoGUI's fail-safe remains enabled: moving the mouse to the top-left corner can abort a stuck automation.
 
-Computer control is powerful and can affect the active Windows session. Review the screenshot and target application before acting. JARVIS does not bypass UAC, Windows security, password prompts or application permissions. It should request confirmation for consequential or irreversible operations.
+Computer control is powerful and can affect the active Windows session. Review the screenshot and target application before acting. JARVIS does not bypass UAC, Windows security, password prompts or application permissions. It should request confirmation for consequential or irreversible operations. Visual model plans are estimates: review every step and verify the result before continuing.
 
 ## Wake phrases
 The background PowerShell listener recognizes: Open Jarvis, Hey Jarvis, Okay Jarvis, OK Jarvis, Wake up Jarvis, Wake up, and Jarvis. Recognition depends on the active microphone, Windows speech-recognition language and room conditions.
