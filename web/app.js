@@ -6,6 +6,15 @@ async function send(text){text=text.trim();if(!text)return;if($("#prompt"))$("#p
 const say=v=>{messages.push({role:"assistant",content:v});add("assistant",v);speak(v)};
 const call=async(url,body)=>{const r=await fetch(url,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||"Request failed");return d};
 let m;
+if((m=text.match(/^(?:plan (?:this )?(?:computer )?task|do this on my computer|use my pc to):?\s+(.+)$/i))){if(!window.prepareJarvisTask)throw Error("Open PC CONTROL first.");await window.prepareJarvisTask(m[1]);say("I've prepared a computer action plan. Review it in PC CONTROL, then approve execution.");return}
+if(/^(?:inspect|read|describe) (?:the )?(?:screen|current window|active window)[?.!]*$/i.test(text)){const d=await call("/api/computer/inspect");say(d.window?("The active window is "+d.window+". Visible controls: "+(d.controls||[]).slice(0,18).map(c=>c.type+" "+c.name).join("; ")+"."):"I couldn't identify an active window.");return}
+if((m=text.match(/^click (?:the )?(?:button|control|field) (.+?)[?.!]*$/i))){const d=await call("/api/computer/ui-action",{window:"",control:m[1].trim()});say("Clicked "+d.control+" in "+d.window+".");return}
+if((m=text.match(/^(?:please\s+)?(?:open|go to|navigate to)\s+(?:the\s+)?(?:website|site)?\s*(https?:\/\/\S+|[a-z0-9.-]+\.[a-z]{2,}(?:\/\S*)?)[?.!]*$/i))){const d=await call("/api/computer/open-url",{url:m[1]});say("Opening "+d.url+".");return}
+if((m=text.match(/^click at\s+(\d{1,4})[ ,]+(\d{1,4})[?.!]*$/i))){const d=await call("/api/computer/action",{action:"click",x:Number(m[1]),y:Number(m[2])});say("Clicked the screen at "+d.x+", "+d.y+".");return}
+if((m=text.match(/^double click at\s+(\d{1,4})[ ,]+(\d{1,4})[?.!]*$/i))){const d=await call("/api/computer/action",{action:"double_click",x:Number(m[1]),y:Number(m[2])});say("Double-clicked at "+d.x+", "+d.y+".");return}
+if((m=text.match(/^(?:type on my computer|type on the computer|type into the computer):?\s+(.+)$/i))){const d=await call("/api/computer/action",{action:"type",text:m[1]});say("Typed "+d.characters+" characters into the active window.");return}
+if((m=text.match(/^press (enter|tab|escape|esc|space|backspace|delete|up|down|left|right|home|end|pageup|pagedown|f[1-6]|f10|f11|f12)[?.!]*$/i))){const d=await call("/api/computer/action",{action:"press",key:m[1].toLowerCase()});say("Pressed "+m[1]+".");return}
+if((m=text.match(/^scroll (up|down)[?.!]*$/i))){const d=await call("/api/computer/action",{action:"scroll",x:1280,y:720,amount:m[1]==="up"?5:-5});say("Scrolled "+m[1]+".");return}
 if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:open|launch|start|run)\s+(.+?)[?.!]*$/i))){const d=await call("/api/desktop/open",{app:m[1].replace(/^(the|my)\s+/i,"").trim()});say("Opening "+d.app+".");return}
 if(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:what(?:'s| is) the time|tell me the time|current time)(?:\s+in\s+zaragoza)?[?.!]*$/i.test(text)){const d=await call("/api/time");say("It's "+new Date(d.time).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+" in Zaragoza.");return}
 if(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:(?:what(?:'s| is)|how(?:'s| is))\s+(?:the\s+)?weather|weather(?:\s+report)?|tell me (?:the )?weather|give me (?:the )?weather)(?:\s+(?:like\s+)?in\s+zaragoza)?[?.!]*$/i.test(text)){const d=await call("/api/weather");say("In "+d.location+", it's "+d.temperature+" degrees Celsius, feels like "+d.feels_like+" degrees, with "+d.condition+". Humidity is "+d.humidity+" percent and wind is "+d.wind_kmh+" kilometres per hour.");return}
@@ -73,6 +82,36 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
   try{statusMsg("Capturing Windows screen…");const r=await fetch("/api/computer/screenshot?ts="+Date.now());if(!r.ok){const d=await r.json();throw Error(d.error||"Screen capture failed")}const blob=await r.blob();const old=shot.dataset.url;if(old)URL.revokeObjectURL(old);const url=URL.createObjectURL(blob);shot.dataset.url=url;shot.src=url;statusMsg("Screen connected · "+new Date().toLocaleTimeString())}
   catch(e){statusMsg(e.message)}
  }
+ let pendingPlan=null;
+ async function understandScreen(){
+  try{const d=await api("/api/computer/vision");$("#visionSummary").textContent=d.description;statusMsg("Screen analyzed by "+d.model)}
+  catch(e){$("#visionSummary").textContent=e.message;statusMsg(e.message)}
+ }
+ async function prepareTaskPlan(task){
+  if(!task?.trim())return;
+  try{
+   statusMsg("JARVIS is examining the screen and planning…");
+   const d=await api("/api/computer/plan",{task:task.trim()});pendingPlan=d;
+   const preview=$("#taskPreview");preview.replaceChildren();
+   const summary=document.createElement("p");summary.textContent=d.summary;preview.append(summary);
+   (d.steps||[]).forEach((step,i)=>{const row=document.createElement("div");row.className="plan-step";row.textContent=(i+1)+". "+(step.action==="type"?"Type: "+step.text:step.action==="open_url"?"Open website: "+step.url:step.action==="press"?"Press "+step.key:step.action==="hotkey"?"Shortcut "+step.keys.join("+"):step.action==="wait"?"Wait "+step.seconds+" seconds":step.action+" at "+(step.x??"center")+", "+(step.y??"center"));preview.append(row)});
+   $("#executePlan").disabled=!(d.steps||[]).length;
+   if(!d.steps?.length){const note=document.createElement("small");note.textContent="JARVIS did not produce safe, actionable steps for this request.";preview.append(note)}
+   panel.classList.remove("hidden");$("#settings").classList.add("hidden");
+   statusMsg("Plan ready · "+d.steps.length+" step(s) · review before execution");
+   return d
+  }catch(e){statusMsg(e.message);$("#taskPreview").textContent=e.message;throw e}
+ }
+ window.prepareJarvisTask=prepareTaskPlan;
+ $("#planTask").onclick=()=>prepareTaskPlan($("#taskInput").value);
+ $("#taskInput").addEventListener("keydown",e=>{if(e.key==="Enter")prepareTaskPlan($("#taskInput").value)});
+ $("#understandScreen").onclick=understandScreen;
+ $("#executePlan").onclick=async()=>{
+  if(!pendingPlan?.steps?.length)return;
+  if(!confirm("Execute the "+pendingPlan.steps.length+" computer actions shown above? Review the steps first."))return;
+  try{const d=await api("/api/computer/execute-plan",{confirm:true,steps:pendingPlan.steps});pendingPlan=null;$("#executePlan").disabled=true;$("#taskPreview").textContent="Completed "+d.completed+" action(s).";statusMsg("Task completed · "+d.completed+" action(s)");await refreshScreen();await refreshStatus()}
+  catch(e){statusMsg(e.message);add("assistant","The computer task stopped: "+e.message);refreshScreen()}
+ };
  async function refreshStatus(){
   try{const d=await api("/api/computer/status");$("#activeWindow").textContent="Active window: "+(d.active_window||"Desktop");$("#processCount").textContent="Running processes: "+d.process_count+" · Screen: "+d.screen.width+" × "+d.screen.height}
   catch(e){statusMsg(e.message)}
@@ -81,6 +120,14 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
  $("#computerBtn").onclick=()=>{panel.classList.remove("hidden");$("#settings").classList.add("hidden");refreshScreen();refreshStatus();};
  $("#closeComputer").onclick=()=>panel.classList.add("hidden");
  $("#refreshScreen").onclick=refreshScreen;$("#refreshStatus").onclick=refreshStatus;
+ async function inspectControls(){
+  try{const d=await api("/api/computer/inspect");const box=$("#uiControls");box.replaceChildren();const title=document.createElement("b");title.textContent=d.window||"No active window";box.append(title);
+   (d.controls||[]).forEach(c=>{const b=document.createElement("button");b.className="ui-control";b.textContent=c.type+": "+c.name;b.title="Click this exact accessible control";b.onclick=async()=>{try{await api("/api/computer/ui-action",{window:d.window,control:c.name});statusMsg("Clicked "+c.name);setTimeout(refreshScreen,300);setTimeout(inspectControls,450)}catch(e){statusMsg(e.message)}};box.append(b)});
+   if(!d.controls?.length){const p=document.createElement("small");p.textContent="No named controls found. Use the screen preview instead.";box.append(p)}
+   statusMsg("Inspected "+(d.window||"active window")+" · "+(d.controls?.length||0)+" controls")
+  }catch(e){statusMsg(e.message)}
+ }
+ $("#inspectControls").onclick=inspectControls;
  $("#screenClickMode").onclick=()=>{clickMode=!clickMode;$("#screenClickMode").textContent=clickMode?"CLICK MODE ON":"CLICK MODE OFF";$("#screenClickMode").classList.toggle("off",!clickMode)};
  shot.addEventListener("click",e=>{
   if(!clickMode||!shot.naturalWidth)return;const r=shot.getBoundingClientRect();
