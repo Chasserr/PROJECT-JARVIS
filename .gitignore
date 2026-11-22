@@ -5,4 +5,14 @@ __pycache__/
 .DS_Store
 jarvis_memory.sqlite3
 jarvis_memory.sqlite3-*
-jarvis-wake.log
+jarvis-wake.log*.bak-*
+upgrade-*.py
+setup-elevenlabs.py
+patch-elevenlabs-ui.py
+set-elevenlabs-key.ps1
+replace-elevenlabs-key.ps1
+patch-*.py
+fix-*.py
+add-*.py
+normalize-*.py
+repair-*.py
