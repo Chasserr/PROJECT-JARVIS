@@ -62,16 +62,57 @@ def running_apps():
 
 def close_app(query):
     q=str(query or "").strip().lower()
-    if not q or len(q)>100: raise ValueError("Tell me which application to close.")
-    matches=[x for x in running_apps() if q in x["name"].lower() or q in x["title"].lower()]
-    if not matches: raise ValueError("I couldn't find a running window matching that name.")
-    names=sorted(set(x["name"] for x in matches))
-    if len(names)>1: raise ValueError("That matches multiple apps: "+", ".join(names[:8])+". Be more specific.")
-    ps="$p=Get-Process -Name "+json.dumps(names[0])+" -ErrorAction SilentlyContinue; $closed=0; foreach($x in $p){if($x.MainWindowHandle -ne 0 -and $x.CloseMainWindow()){$closed++}}; Write-Output $closed"
-    r=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",ps],capture_output=True,text=True,timeout=10,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
-    if r.returncode: raise RuntimeError("Windows could not close that application.")
-    count=int((r.stdout or "0").strip() or 0)
-    return names[0],count
+    if not q or len(q)>100:
+        raise ValueError("Tell me which application to close.")
+    from pywinauto import Desktop
+    desktop=Desktop(backend="uia")
+    windows=desktop.windows(visible_only=True, enabled_only=True)
+    matches=[]
+    for win in windows:
+        try:
+            title=win.window_text().strip()
+            if title and q in title.lower():
+                matches.append((title,win))
+        except Exception:
+            pass
+    # Prefer the actual matching top-level window. Never terminate a shared
+    # host process such as ApplicationFrameHost.exe for a single app request.
+    unique={}
+    for title,win in matches:
+        try: unique[win.handle]=(title,win)
+        except Exception: pass
+    matches=list(unique.values())
+    if not matches:
+        raise ValueError("I couldn't find a visible application window matching that name.")
+    if len(matches)>1:
+        titles=sorted(set(title for title,_ in matches))
+        if len(titles)>1:
+            raise ValueError("That matches multiple windows: "+", ".join(titles[:8])+". Be more specific.")
+        # Same app may expose several windows; close only its titled windows.
+    closed=[]
+    for title,win in matches:
+        try:
+            win.close()
+            closed.append(title)
+        except Exception:
+            try:
+                import win32gui, win32con
+                win32gui.PostMessage(win.handle, win32con.WM_CLOSE, 0, 0)
+                closed.append(title)
+            except Exception:
+                pass
+    time.sleep(0.7)
+    remaining=[]
+    for win in desktop.windows(visible_only=True, enabled_only=True):
+        try:
+            title=win.window_text().strip()
+            if title and q in title.lower():
+                remaining.append(title)
+        except Exception:
+            pass
+    if remaining:
+        return sorted(set(title for title,_ in matches))[0],0
+    return sorted(set(title for title,_ in matches))[0],len(closed)
 
 def search_files(query,folder):
     q=str(query or "").strip().lower()
@@ -442,22 +483,50 @@ class Handler(SimpleHTTPRequestHandler):
         body=json.dumps(obj).encode(); self.send_response(code); self.send_header("Content-Type","application/json; charset=utf-8"); self.send_header("Content-Length",str(len(body))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(body)
     def reject_unsafe_write(self):
         host=self.headers.get("Host","").lower()
-        if host not in ("127.0.0.1:8765","localhost:8765"):
-            self.send_json(403,{"error":"JARVIS accepts computer-control requests only from its local address."})
+        local_hosts=("127.0.0.1:8765","localhost:8765")
+        mobile_hosts=("riqco.taild4d092.ts.net","riqco.taild4d092.ts.net:443")
+        if host not in local_hosts+mobile_hosts:
+            self.send_json(403,{"error":"JARVIS accepts control requests only from its approved local or private Tailscale address."})
+            return True
+        # Tailscale Serve injects this identity header for authenticated tailnet clients.
+        # The backend remains bound to localhost; never expose port 8765 directly.
+        if host in mobile_hosts and not self.headers.get("Tailscale-User-Login"):
+            self.send_json(403,{"error":"An authenticated Tailscale session is required."})
             return True
         origin=self.headers.get("Origin")
-        if origin and origin not in ("http://127.0.0.1:8765","http://localhost:8765"):
+        allowed_origins=("http://127.0.0.1:8765","http://localhost:8765","https://riqco.taild4d092.ts.net")
+        if origin and origin not in allowed_origins:
             self.send_json(403,{"error":"Cross-origin computer-control requests are blocked."})
             return True
         if not self.headers.get("Content-Type","").lower().startswith("application/json"):
             self.send_json(415,{"error":"Computer-control requests must use application/json."})
             return True
         return False
+    def reject_unsafe_read(self):
+        # Protect private computer, file, memory and reminder data on every
+        # API read. Only the health endpoint is intentionally public.
+        host=self.headers.get("Host","").lower()
+        local_hosts=("127.0.0.1:8765","localhost:8765")
+        mobile_hosts=("riqco.taild4d092.ts.net","riqco.taild4d092.ts.net:443")
+        if host not in local_hosts+mobile_hosts:
+            self.send_json(403,{"error":"JARVIS accepts API requests only from its approved local or private Tailscale address."})
+            return True
+        if host in mobile_hosts and not self.headers.get("Tailscale-User-Login"):
+            self.send_json(403,{"error":"An authenticated Tailscale session is required."})
+            return True
+        origin=self.headers.get("Origin")
+        allowed_origins=("http://127.0.0.1:8765","http://localhost:8765","https://riqco.taild4d092.ts.net")
+        if origin and origin not in allowed_origins:
+            self.send_json(403,{"error":"Cross-origin API reads are blocked."})
+            return True
+        return False
+
     def read_body(self):
         n=int(self.headers.get("Content-Length","0"))
         if n>20000: raise ValueError("Request too large")
         return json.loads(self.rfile.read(n) or b"{}")
     def do_GET(self):
+        if self.path.startswith("/api/") and self.path!="/api/health" and self.reject_unsafe_read(): return
         if self.path=="/api/health":
             with MODEL_LOCK: selected=MODEL
             d={"app":"online","lm_studio":False,"model":selected,"models":[],"memory_count":0}

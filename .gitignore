@@ -16,3 +16,10 @@ fix-*.py
 add-*.py
 normalize-*.py
 repair-*.py
+# Local diagnostics, logs and rollback backups
+*.bak
+*.bak-*
+*.log
+*.log-*
+jarvis_memory.sqlite3*
+

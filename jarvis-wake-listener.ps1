@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $Project = "C:\Users\Mesha\Desktop\PROJECT-JARVIS"
 $Url = "http://127.0.0.1:8765"
 $Log = Join-Path $Project "jarvis-wake.log"
@@ -26,7 +26,7 @@ try {
     $phrase = $event.SourceEventArgs.Result.Text
     $confidence = [math]::Round($event.SourceEventArgs.Result.Confidence,2)
     Remove-Event -EventIdentifier $event.EventIdentifier
-    if ($confidence -lt 0.45) { Log "Ignored low-confidence phrase '$phrase' ($confidence)."; continue }
+    if ($confidence -lt 0.35) { Log "Ignored low-confidence phrase '$phrase' ($confidence)."; continue }
     if (((Get-Date)-$lastLaunch).TotalSeconds -lt 2) { continue }
     $lastLaunch = Get-Date
     try { Invoke-RestMethod -Uri "$Url/api/health" -TimeoutSec 2 | Out-Null }
@@ -41,3 +41,4 @@ try {
   if ($recognizer) { $recognizer.Dispose() }
   Unregister-Event -SourceIdentifier JarvisWake -ErrorAction SilentlyContinue
 }
+
