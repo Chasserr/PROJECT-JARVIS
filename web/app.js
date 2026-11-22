@@ -18,18 +18,25 @@ $("#mic").onclick=()=>{if(!SR){add("assistant","Use Microsoft Edge or Chrome for
 $("#settingsBtn").onclick=()=>$("#settings").classList.toggle("hidden");$("#closeSettings").onclick=()=>$("#settings").classList.add("hidden");$("#memoryToggle").onclick=()=>$("#memoryArea").classList.toggle("hidden");$("#attach").onclick=()=>$("#settings").classList.toggle("hidden");
 health();loadMemory();if(SR)startWake();setInterval(health,15000);
 (()=>{
- const canvas=document.getElementById("neuralCore"); if(!canvas)return;
- const ctx=canvas.getContext("2d"),N=210,pts=[];
- for(let i=0;i<N;i++){const y=1-(i/(N-1))*2,rad=Math.sqrt(1-y*y),a=Math.PI*(3-Math.sqrt(5))*i;pts.push({x:Math.cos(a)*rad,y,z:Math.sin(a)*rad,phase:Math.random()*6.28})}
- let angle=0,mode="idle";
+ const canvas=document.getElementById("neuralCore");if(!canvas)return;
+ const c=canvas.getContext("2d"),W=640,H=640,CX=320,CY=320;
+ let state="idle",rot=0;
  const orb=document.getElementById("mic");
- new MutationObserver(()=>{mode=orb.classList.contains("listening")?"listen":orb.classList.contains("speaking")?"speak":orb.classList.contains("thinking")?"think":"idle"}).observe(orb,{attributes:true,attributeFilter:["class"]});
- function frame(t){const w=canvas.width,h=canvas.height,cx=w/2,cy=h/2,R=190;ctx.clearRect(0,0,w,h);angle+=mode==="speak"?.012:mode==="listen"?.007:mode==="think"?.009:.004;
- const projected=pts.map(p=>{const pulse=Math.sin(t*.0015+p.phase)*(mode==="listen"?7:mode==="speak"?12:4);const x=p.x*Math.cos(angle)-p.z*Math.sin(angle),z=p.x*Math.sin(angle)+p.z*Math.cos(angle);const y=p.y*Math.cos(.25)+z*Math.sin(.25),zz=z*Math.cos(.25)-p.y*Math.sin(.25),k=190/(190+zz*48);return{x:cx+x*(R+pulse)*k,y:cy+y*(R+pulse)*k,z:zz,depth:k}});
- ctx.globalCompositeOperation="lighter";
- for(let i=0;i<N;i++){const a=projected[i];for(let j=i+1;j<N;j++){const b=projected[j],dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy;if(d<1800){const alpha=(1-d/1800)*Math.min(a.depth,b.depth)*.42;ctx.strokeStyle=mode==="speak"?"rgba(45,157,255,"+alpha+")":mode==="think"?"rgba(150,115,255,"+alpha+")":"rgba(45,255,197,"+alpha+")";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
- for(let i=0;i<N;i++){const p=projected[i],alpha=Math.min(1,Math.max(.15,p.depth*.9));ctx.fillStyle=mode==="speak"?"rgba(93,185,255,"+alpha+")":"rgba("+(i%5===0?100:55)+",255,"+(i%5===0?230:190)+","+alpha+")";ctx.beginPath();ctx.arc(p.x,p.y,i%8===0?2.7:1.35,0,Math.PI*2);ctx.fill()}
- for(let ring=0;ring<3;ring++){ctx.beginPath();ctx.ellipse(cx,cy,R*(.84+ring*.13),R*(.2+ring*.025),angle*(ring%2?-.4:.35),0,Math.PI*2);ctx.strokeStyle="rgba(68,255,215,"+(.16-ring*.035)+")";ctx.lineWidth=1;ctx.stroke()}
- const g=ctx.createRadialGradient(cx-R*.2,cy-R*.25,4,cx,cy,R);g.addColorStop(0,"rgba(64,255,211,.13)");g.addColorStop(.65,"rgba(0,180,170,.035)");g.addColorStop(1,"rgba(0,30,45,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();ctx.globalCompositeOperation="source-over";requestAnimationFrame(frame)}
+ new MutationObserver(()=>{state=orb.classList.contains("listening")?"listen":orb.classList.contains("speaking")?"speak":orb.classList.contains("thinking")?"think":"idle"}).observe(orb,{attributes:true,attributeFilter:["class"]});
+ let seed=9471;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646}
+ const dots=Array.from({length:1050},()=>{const u=rand()*2-1,a=rand()*Math.PI*2,r=Math.sqrt(1-u*u);return{a,u,r,sz:.35+rand()*1.8,ph:rand()*Math.PI*2,dr:rand()*.12,col:rand()}});
+ const strands=Array.from({length:22},(_,i)=>({a:rand()*6.28,phase:rand()*6.28,tilt:(rand()-.5)*1.5,len:1.3+rand()*1.7,offset:rand()*60}));
+ function project(x,y,z){const ca=Math.cos(rot),sa=Math.sin(rot),xx=x*ca-z*sa,zz=x*sa+z*ca;const tilt=.24,yy=y*Math.cos(tilt)-zz*Math.sin(tilt),z2=y*Math.sin(tilt)+zz*Math.cos(tilt),pers=1/(1+z2*.22);return{x:CX+xx*205*pers,y:CY+yy*205*pers,z:z2,pers}}
+ function frame(t){rot+=state==="speak"?.009:state==="listen"?.006:.0027;const pulse=state==="speak"?1.12:state==="listen"?1.07:state==="think"?.97:1; c.clearRect(0,0,W,H);
+ const glow=c.createRadialGradient(CX,CY,4,CX,CY,250);glow.addColorStop(0,state==="speak"?"rgba(20,120,255,.22)":"rgba(0,255,190,.18)");glow.addColorStop(.35,"rgba(0,180,160,.075)");glow.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=glow;c.fillRect(0,0,W,H);
+ c.globalCompositeOperation="lighter";
+ // Curved, turbulent energy filaments wrap the volume like a living plasma cloud.
+ strands.forEach((s,k)=>{c.beginPath();for(let j=0;j<=180;j++){const q=j/180* Math.PI*2*s.len+s.phase+t*.00024*(state==="speak"?2.5:1),lat=Math.sin(q*1.7+s.offset)*.52+s.tilt,rad=155+24*Math.sin(q*3+s.a)+13*Math.cos(q*5+s.phase);const x=Math.cos(q+s.a)*Math.cos(lat)*rad,y=Math.sin(lat)*rad,z=Math.sin(q+s.a)*Math.cos(lat)*rad;const p=project(x/205,y/205,z/205);if(j===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y)}c.strokeStyle=k%4===0?"rgba(65,170,255,.38)":"rgba(43,255,190,.26)";c.lineWidth=k%5===0?1.5:.75;c.stroke()});
+ // Dense irregular cloud of glowing particles, with depth and organic movement.
+ dots.forEach((d,i)=>{const wobble=Math.sin(t*.0007+d.ph)*(.025+d.dr*.08),lat=Math.asin(d.u)+wobble,rad=(.78+.22*Math.sin(d.a*4+d.ph+t*.0005))*pulse;const x=Math.cos(d.a+rot*1.8)*Math.cos(lat)*d.r*rad,y=Math.sin(lat)*rad,z=Math.sin(d.a+rot*1.8)*Math.cos(lat)*d.r*rad;const p=project(x,y,z);const alpha=Math.min(.95,.18+p.pers*.66);const blue=d.col>.86||p.z<-.55;c.fillStyle=blue?"rgba(50,150,255,"+alpha+")":"rgba("+(d.col>.5?85:38)+",255,"+(d.col>.5?211:168)+","+alpha+")";const size=d.sz*(.65+p.pers*.65);c.beginPath();c.arc(p.x,p.y,size,0,Math.PI*2);c.fill();if(i%17===0){c.fillStyle="rgba(93,255,225,"+(alpha*.18)+")";c.beginPath();c.arc(p.x,p.y,size*4,0,Math.PI*2);c.fill()}});
+ // Electric blue inner nucleus and subtle orbital arcs.
+ const core=c.createRadialGradient(CX-18,CY-22,2,CX,CY,108);core.addColorStop(0,"rgba(177,255,238,.42)");core.addColorStop(.2,"rgba(0,255,199,.18)");core.addColorStop(.55,"rgba(0,145,255,.09)");core.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=core;c.beginPath();c.arc(CX,CY,110,0,Math.PI*2);c.fill();
+ for(let n=0;n<4;n++){c.beginPath();c.ellipse(CX,CY,190+n*10,48+n*13,rot*(n%2?-.55:.4)+n,0,Math.PI*2);c.strokeStyle="rgba(70,230,210,"+(.09+n*.012)+")";c.lineWidth=.8;c.stroke()}
+ c.globalCompositeOperation="source-over";requestAnimationFrame(frame)}
  requestAnimationFrame(frame);
 })();
