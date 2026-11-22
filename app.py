@@ -440,6 +440,19 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(ROOT/"web"),**kw)
     def send_json(self,code,obj):
         body=json.dumps(obj).encode(); self.send_response(code); self.send_header("Content-Type","application/json; charset=utf-8"); self.send_header("Content-Length",str(len(body))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(body)
+    def reject_unsafe_write(self):
+        host=self.headers.get("Host","").lower()
+        if host not in ("127.0.0.1:8765","localhost:8765"):
+            self.send_json(403,{"error":"JARVIS accepts computer-control requests only from its local address."})
+            return True
+        origin=self.headers.get("Origin")
+        if origin and origin not in ("http://127.0.0.1:8765","http://localhost:8765"):
+            self.send_json(403,{"error":"Cross-origin computer-control requests are blocked."})
+            return True
+        if not self.headers.get("Content-Type","").lower().startswith("application/json"):
+            self.send_json(415,{"error":"Computer-control requests must use application/json."})
+            return True
+        return False
     def read_body(self):
         n=int(self.headers.get("Content-Length","0"))
         if n>20000: raise ValueError("Request too large")
@@ -494,6 +507,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
     def do_POST(self):
         global MODEL
+        if self.reject_unsafe_write(): return
         try: data=self.read_body()
         except ValueError as e: return self.send_json(413,{"error":str(e)})
         except Exception: return self.send_json(400,{"error":"Invalid JSON"})
@@ -624,6 +638,7 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json(500,{"error":str(e)})
         return self.send_json(404,{"error":"Not found"})
     def do_DELETE(self):
+        if self.reject_unsafe_write(): return
         if self.path=="/api/memory":
             try: data=self.read_body()
             except Exception: return self.send_json(400,{"error":"Invalid request"})
