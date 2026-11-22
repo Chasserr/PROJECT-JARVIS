@@ -42,25 +42,27 @@ $("#settingsBtn").onclick=()=>$("#settings").classList.toggle("hidden");$("#clos
 health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition is unavailable in this browser. Use Microsoft Edge.");setInterval(health,15000);
 (()=>{
  const canvas=document.getElementById("neuralCore");if(!canvas)return;
- const c=canvas.getContext("2d"),W=640,H=640,CX=320,CY=320;
- let state="idle",rot=0;
- const orb=document.getElementById("mic");
- new MutationObserver(()=>{state=orb.classList.contains("listening")?"listen":orb.classList.contains("speaking")?"speak":orb.classList.contains("thinking")?"think":"idle"}).observe(orb,{attributes:true,attributeFilter:["class"]});
- let seed=9471;function rand(){seed=(seed*16807)%2147483647;return(seed-1)/2147483646}
- const dots=Array.from({length:1050},()=>{const u=rand()*2-1,a=rand()*Math.PI*2,r=Math.sqrt(1-u*u);return{a,u,r,sz:.35+rand()*1.8,ph:rand()*Math.PI*2,dr:rand()*.12,col:rand()}});
- const strands=Array.from({length:22},(_,i)=>({a:rand()*6.28,phase:rand()*6.28,tilt:(rand()-.5)*1.5,len:1.3+rand()*1.7,offset:rand()*60}));
- function project(x,y,z){const ca=Math.cos(rot),sa=Math.sin(rot),xx=x*ca-z*sa,zz=x*sa+z*ca;const tilt=.24,yy=y*Math.cos(tilt)-zz*Math.sin(tilt),z2=y*Math.sin(tilt)+zz*Math.cos(tilt),pers=1/(1+z2*.22);return{x:CX+xx*205*pers,y:CY+yy*205*pers,z:z2,pers}}
- function frame(t){rot+=state==="speak"?.009:state==="listen"?.006:.0027;const pulse=state==="speak"?1.12:state==="listen"?1.07:state==="think"?.97:1; c.clearRect(0,0,W,H);
- const glow=c.createRadialGradient(CX,CY,4,CX,CY,250);glow.addColorStop(0,state==="speak"?"rgba(160,255,210,.22)":"rgba(0,255,160,.18)");glow.addColorStop(.35,"rgba(0,180,160,.075)");glow.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=glow;c.fillRect(0,0,W,H);
- c.globalCompositeOperation="lighter";
- // Curved, turbulent energy filaments wrap the volume like a living plasma cloud.
- strands.forEach((s,k)=>{c.beginPath();for(let j=0;j<=180;j++){const q=j/180* Math.PI*2*s.len+s.phase+t*.00024*(state==="speak"?2.5:1),lat=Math.sin(q*1.7+s.offset)*.52+s.tilt,rad=155+24*Math.sin(q*3+s.a)+13*Math.cos(q*5+s.phase);const x=Math.cos(q+s.a)*Math.cos(lat)*rad,y=Math.sin(lat)*rad,z=Math.sin(q+s.a)*Math.cos(lat)*rad;const p=project(x/205,y/205,z/205);if(j===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y)}c.strokeStyle=k%4===0?"rgba(191,255,218,.32)":"rgba(70,255,181,.27)";c.lineWidth=k%5===0?1.5:.75;c.stroke()});
- // Dense irregular cloud of glowing particles, with depth and organic movement.
- dots.forEach((d,i)=>{const wobble=Math.sin(t*.0007+d.ph)*(.025+d.dr*.08),lat=Math.asin(d.u)+wobble,rad=(.78+.22*Math.sin(d.a*4+d.ph+t*.0005))*pulse;const x=Math.cos(d.a+rot*1.8)*Math.cos(lat)*d.r*rad,y=Math.sin(lat)*rad,z=Math.sin(d.a+rot*1.8)*Math.cos(lat)*d.r*rad;const p=project(x,y,z);const alpha=Math.min(.95,.18+p.pers*.66);const blue=d.col>.86||p.z<-.55;c.fillStyle=blue?"rgba(177,255,213,"+alpha+")":"rgba("+(d.col>.5?85:38)+",255,"+(d.col>.5?211:168)+","+alpha+")";const size=d.sz*(.65+p.pers*.65);c.beginPath();c.arc(p.x,p.y,size,0,Math.PI*2);c.fill();if(i%17===0){c.fillStyle="rgba(93,255,225,"+(alpha*.18)+")";c.beginPath();c.arc(p.x,p.y,size*4,0,Math.PI*2);c.fill()}});
- // Electric blue inner nucleus and subtle orbital arcs.
- const core=c.createRadialGradient(CX-18,CY-22,2,CX,CY,108);core.addColorStop(0,"rgba(177,255,238,.42)");core.addColorStop(.2,"rgba(0,255,199,.18)");core.addColorStop(.55,"rgba(0,145,255,.09)");core.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=core;c.beginPath();c.arc(CX,CY,110,0,Math.PI*2);c.fill();
- for(let n=0;n<4;n++){c.beginPath();c.ellipse(CX,CY,190+n*10,48+n*13,rot*(n%2?-.55:.4)+n,0,Math.PI*2);c.strokeStyle="rgba(70,230,210,"+(.09+n*.012)+")";c.lineWidth=.8;c.stroke()}
- c.globalCompositeOperation="source-over";requestAnimationFrame(frame)}
+ const ctx=canvas.getContext("2d"),W=640,H=640,CX=320,CY=320,orb=document.getElementById("mic");
+ let mode="idle",rotation=0,lastFrame=0,energy=0;
+ new MutationObserver(()=>{mode=orb.classList.contains("listening")?"listen":orb.classList.contains("speaking")?"speak":orb.classList.contains("thinking")?"think":"idle"}).observe(orb,{attributes:true,attributeFilter:["class"]});
+ let seed=82173;const random=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646};
+ const particles=Array.from({length:1900},()=>{const u=random()*2-1,a=random()*Math.PI*2;return{a,u,r:Math.sqrt(1-u*u),size:.35+random()*1.55,phase:random()*6.28,speed:.3+random()*1.6,layer:random(),hue:random(),orbit:random()*6.28}});
+ const filaments=Array.from({length:34},()=>({a:random()*6.28,b:random()*6.28,phase:random()*6.28,turns:1.2+random()*2.8,thick:.45+random()*1.2,hue:random()}));
+ const sparks=Array.from({length:170},()=>({a:random()*6.28,u:random()*2-1,speed:.15+random()*.5,phase:random()*6.28,size:.5+random()*1.4}));
+ const color=(h,a)=>{const k=(n)=>Math.round(127+128*Math.sin((h*6.283+n)*1.0));return 'rgba('+k(0)+','+k(2.094)+','+k(4.188)+','+a+')'};
+ function project(x,y,z){const ca=Math.cos(rotation),sa=Math.sin(rotation),xx=x*ca-z*sa,zz=x*sa+z*ca,tilt=.19,yy=y*Math.cos(tilt)-zz*Math.sin(tilt),depth=y*Math.sin(tilt)+zz*Math.cos(tilt),pers=1/(1+depth*.2);return{x:CX+xx*218*pers,y:CY+yy*218*pers,z:depth,pers}}
+ function frame(now){const dt=Math.min(40,now-lastFrame||16);lastFrame=now;const active=mode==="speak"?1.25:mode==="listen"?1.12:mode==="think"?.92:1;energy+=(active-energy)*.045;rotation+=dt*(mode==="speak"?.00095:mode==="listen"?.00072:.00034);ctx.clearRect(0,0,W,H);
+ const halo=ctx.createRadialGradient(CX,CY,8,CX,CY,285);halo.addColorStop(0,color((now*.000025)%1,.17));halo.addColorStop(.35,color((now*.000025+.12)%1,.07));halo.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=halo;ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation="lighter";
+ // Layered plasma filaments form a dense, breathing three-dimensional energy cloud.
+ filaments.forEach((f,j)=>{ctx.beginPath();for(let i=0;i<=240;i++){const q=i/240*Math.PI*2*f.turns+f.phase+now*.00018*(j%2?1:-1),lat=Math.sin(q*1.45+f.b)*.88,rad=174+26*Math.sin(q*2.8+f.a)+14*Math.cos(q*5.1+f.phase),x=Math.cos(q+f.a)*Math.cos(lat)*rad,y=Math.sin(lat)*rad,z=Math.sin(q+f.a)*Math.cos(lat)*rad,p=project(x/218,y/218,z/218);if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)}ctx.strokeStyle=color((f.hue+now*.000035)%1,.11+(j%5)*.035);ctx.lineWidth=f.thick;ctx.stroke()});
+ // Fine particles drift across the shell, with depth, shimmer and spectral color shifts.
+ particles.forEach((p,i)=>{const wave=Math.sin(now*.00065*p.speed+p.phase)*.045,lat=Math.asin(p.u)+wave,a=p.a+rotation*(.75+p.layer*.9),breath=1+(.025+energy*.07)*Math.sin(now*.0014+p.phase),radius=(.78+.22*Math.sin(p.a*5+p.phase+now*.0004))*breath,x=Math.cos(a)*Math.cos(lat)*p.r*radius,y=Math.sin(lat)*radius,z=Math.sin(a)*Math.cos(lat)*p.r*radius,pt=project(x,y,z),front=Math.max(.12,Math.min(1,.42+pt.z*.48)),alpha=(.16+pt.pers*.65)*front,h=(p.hue+now*.000045+(mode==="speak"?.12:0))%1,size=p.size*(.65+pt.pers*.75);ctx.fillStyle=color(h,alpha);ctx.beginPath();ctx.arc(pt.x,pt.y,size,0,Math.PI*2);ctx.fill();if(i%23===0){ctx.fillStyle=color((h+.08)%1,alpha*.17);ctx.beginPath();ctx.arc(pt.x,pt.y,size*4.5,0,Math.PI*2);ctx.fill()}});
+ // Outward-moving sparks create the starburst / particle-explosion effect in the reference.
+ sparks.forEach((s,i)=>{const pulse=(now*.00022*s.speed+s.phase)%(Math.PI*2),dist=226+Math.sin(pulse)*23+(mode==="speak"?Math.sin(pulse*2)*18:0),lat=Math.asin(s.u),a=s.a+rotation*1.4,x=Math.cos(a)*Math.cos(lat)*dist,y=Math.sin(lat)*dist,z=Math.sin(a)*Math.cos(lat)*dist,p=project(x/218,y/218,z/218);ctx.fillStyle=color((.53+i/170*.28+now*.000025)%1,.24);ctx.beginPath();ctx.arc(p.x,p.y,s.size*p.pers,0,Math.PI*2);ctx.fill()});
+ // Bright inner nucleus and thin rotating magnetic rings.
+ const core=ctx.createRadialGradient(CX-22,CY-28,3,CX,CY,132);core.addColorStop(0,"rgba(255,255,255,.28)");core.addColorStop(.18,color((now*.00004)%1,.2));core.addColorStop(.56,color((now*.00004+.16)%1,.075));core.addColorStop(1,"rgba(0,0,0,0)");ctx.fillStyle=core;ctx.beginPath();ctx.arc(CX,CY,132,0,Math.PI*2);ctx.fill();
+ for(let n=0;n<6;n++){ctx.beginPath();ctx.ellipse(CX,CY,194+n*9,48+n*12,rotation*(n%2?-.7:.55)+n*.8,0,Math.PI*2);ctx.strokeStyle=color((n/6+now*.00002)%1,.08+n*.012);ctx.lineWidth=.7;ctx.stroke()}
+ ctx.globalCompositeOperation="source-over";requestAnimationFrame(frame)}
  requestAnimationFrame(frame);
 })();
 
@@ -157,3 +159,9 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
 
 // Holographic HUD telemetry follows the live JARVIS voice state.
 (()=>{const orb=document.getElementById("mic"),voice=document.getElementById("hudVoice"),load=document.getElementById("hudLoad");if(!orb||!voice||!load)return;const sync=()=>{const s=document.getElementById("state")?.textContent||"STANDBY";voice.textContent=s.includes("LISTEN")?"LISTENING":s.includes("SPEAK")?"SPEAKING":s.includes("THINK")?"PROCESSING":"IDLE";load.textContent=s.includes("THINK")?"COMPUTING":s.includes("SPEAK")?"OUTPUT ACTIVE":"READY"};new MutationObserver(sync).observe(document.getElementById("state"),{childList:true,subtree:true,characterData:true});sync()})();
+
+// One-click cinematic presentation mode; all assistant controls remain available when exited.
+(()=>{const btn=document.getElementById("cinemaBtn");if(!btn)return;btn.addEventListener("click",()=>{document.body.classList.toggle("cinematic");btn.textContent=document.body.classList.contains("cinematic")?"EXIT CINEMATIC":"CINEMATIC VIEW"})})();
+
+/* Wake-word bubble: the idle screen stays clean; the bubble appears only during interaction. */
+(()=>{const zone=document.querySelector(".orb-zone");if(!zone)return;let bubble=document.getElementById("wakeBubble");if(!bubble){bubble=document.createElement("div");bubble.id="wakeBubble";bubble.className="wake-bubble";bubble.setAttribute("aria-live","polite");zone.appendChild(bubble)}const state=document.getElementById("state");const sync=()=>{const s=(state?.textContent||"").toUpperCase();let label="";if(s.includes("LISTEN"))label="LISTENING";else if(s.includes("THINK"))label="THINKING";else if(s.includes("SPEAK"))label="SPEAKING";if(label){bubble.textContent=label;bubble.classList.add("visible")}else bubble.classList.remove("visible")};if(state){new MutationObserver(sync).observe(state,{childList:true,subtree:true,characterData:true});sync()}document.title="JARVIS";})();
