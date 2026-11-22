@@ -32,5 +32,3 @@ Early working prototype, not a full Jarvis clone. Wake-word detection, broad com
 
 ## License
 MIT — see LICENSE.
-
-[executed on device: RIQCO (8d334d39-dd57-43d5-a43f-c4290607a406)]
