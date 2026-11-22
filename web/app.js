@@ -17,3 +17,19 @@ $("#wakeToggle").onclick=()=>{if(wakeOn)stopWake();else if(!SR)add("assistant","
 $("#mic").onclick=()=>{if(!SR){add("assistant","Use Microsoft Edge or Chrome for voice input.");return}const rec=new SR();rec.lang="en-US";rec.interimResults=false;rec.onstart=()=>setState("LISTENING");rec.onresult=e=>send(e.results[0][0].transcript);rec.onerror=()=>setState("VOICE ERROR");rec.start()};
 $("#settingsBtn").onclick=()=>$("#settings").classList.toggle("hidden");$("#closeSettings").onclick=()=>$("#settings").classList.add("hidden");$("#memoryToggle").onclick=()=>$("#memoryArea").classList.toggle("hidden");$("#attach").onclick=()=>$("#settings").classList.toggle("hidden");
 health();loadMemory();if(SR)startWake();setInterval(health,15000);
+(()=>{
+ const canvas=document.getElementById("neuralCore"); if(!canvas)return;
+ const ctx=canvas.getContext("2d"),N=210,pts=[];
+ for(let i=0;i<N;i++){const y=1-(i/(N-1))*2,rad=Math.sqrt(1-y*y),a=Math.PI*(3-Math.sqrt(5))*i;pts.push({x:Math.cos(a)*rad,y,z:Math.sin(a)*rad,phase:Math.random()*6.28})}
+ let angle=0,mode="idle";
+ const orb=document.getElementById("mic");
+ new MutationObserver(()=>{mode=orb.classList.contains("listening")?"listen":orb.classList.contains("speaking")?"speak":orb.classList.contains("thinking")?"think":"idle"}).observe(orb,{attributes:true,attributeFilter:["class"]});
+ function frame(t){const w=canvas.width,h=canvas.height,cx=w/2,cy=h/2,R=190;ctx.clearRect(0,0,w,h);angle+=mode==="speak"?.012:mode==="listen"?.007:mode==="think"?.009:.004;
+ const projected=pts.map(p=>{const pulse=Math.sin(t*.0015+p.phase)*(mode==="listen"?7:mode==="speak"?12:4);const x=p.x*Math.cos(angle)-p.z*Math.sin(angle),z=p.x*Math.sin(angle)+p.z*Math.cos(angle);const y=p.y*Math.cos(.25)+z*Math.sin(.25),zz=z*Math.cos(.25)-p.y*Math.sin(.25),k=190/(190+zz*48);return{x:cx+x*(R+pulse)*k,y:cy+y*(R+pulse)*k,z:zz,depth:k}});
+ ctx.globalCompositeOperation="lighter";
+ for(let i=0;i<N;i++){const a=projected[i];for(let j=i+1;j<N;j++){const b=projected[j],dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy;if(d<1800){const alpha=(1-d/1800)*Math.min(a.depth,b.depth)*.42;ctx.strokeStyle=mode==="speak"?"rgba(45,157,255,"+alpha+")":mode==="think"?"rgba(150,115,255,"+alpha+")":"rgba(45,255,197,"+alpha+")";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}
+ for(let i=0;i<N;i++){const p=projected[i],alpha=Math.min(1,Math.max(.15,p.depth*.9));ctx.fillStyle=mode==="speak"?"rgba(93,185,255,"+alpha+")":"rgba("+(i%5===0?100:55)+",255,"+(i%5===0?230:190)+","+alpha+")";ctx.beginPath();ctx.arc(p.x,p.y,i%8===0?2.7:1.35,0,Math.PI*2);ctx.fill()}
+ for(let ring=0;ring<3;ring++){ctx.beginPath();ctx.ellipse(cx,cy,R*(.84+ring*.13),R*(.2+ring*.025),angle*(ring%2?-.4:.35),0,Math.PI*2);ctx.strokeStyle="rgba(68,255,215,"+(.16-ring*.035)+")";ctx.lineWidth=1;ctx.stroke()}
+ const g=ctx.createRadialGradient(cx-R*.2,cy-R*.25,4,cx,cy,R);g.addColorStop(0,"rgba(64,255,211,.13)");g.addColorStop(.65,"rgba(0,180,170,.035)");g.addColorStop(1,"rgba(0,30,45,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();ctx.globalCompositeOperation="source-over";requestAnimationFrame(frame)}
+ requestAnimationFrame(frame);
+})();
