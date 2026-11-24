@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -22,6 +22,7 @@ from jarvis.providers.openai_compatible import OpenAICompatibleProvider
 from jarvis.providers.router import FallbackProvider
 from jarvis.skills import (
     browser_control,
+    bughunter,
     pc_control,
     security_scanner,
     voice_control,
@@ -42,7 +43,7 @@ def _provider() -> ChatProvider:
         base_url=settings.local_base_url,
         api_key=settings.local_api_key,
         model=settings.local_model,
-        name="lm_studio",
+        name="ollama",
     )
     if (
         settings.provider.lower() == "claude"
@@ -98,6 +99,21 @@ def _build_agent() -> Agent:
         "memory.search": _search_memories,
         "security.scan_project": lambda _: asyncio.to_thread(
             security_scanner.scan_project, PROJECT_ROOT, PROJECT_ROOT / "data" / "security-reports"
+        ),
+        "bughunter.capabilities": lambda _: asyncio.to_thread(bughunter.capabilities),
+        "bughunter.read_skill": lambda args: asyncio.to_thread(
+            bughunter.read_skill, args["skill_name"]
+        ),
+        "bughunter.classify_url": lambda args: asyncio.to_thread(
+            bughunter.classify_url, args["url"]
+        ),
+        "bughunter.local_audit": lambda _: asyncio.to_thread(bughunter.local_audit),
+        "bughunter.surface_local": lambda _: asyncio.to_thread(bughunter.surface_local),
+        "bughunter.triage_finding": lambda args: asyncio.to_thread(
+            bughunter.triage_finding, args["finding_name"]
+        ),
+        "bughunter.draft_report": lambda args: asyncio.to_thread(
+            bughunter.draft_report, args["finding_name"], args["platform"]
         ),
         "web.search": lambda args: web_intelligence.search_web(args["query"], args.get("limit", 5)),
         "web.read_page": lambda args: web_intelligence.read_page(args["url"]),

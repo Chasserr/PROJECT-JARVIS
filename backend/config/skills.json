@@ -426,6 +426,73 @@
         "source_path": "string",
         "output_name": "string"
       }
+    },
+    {
+      "skill_id": "bughunter.capabilities",
+      "description": "List the installed Claude-BugHunter skill library, command set and supported CLI workflows available to JARVIS.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
+      "skill_id": "bughunter.read_skill",
+      "description": "Read the complete local guidance for one installed BugHunter skill by its exact skill directory name.",
+      "permission": "read_only",
+      "arguments": {
+        "skill_name": "Exact BugHunter skill directory name"
+      },
+      "argument_types": {
+        "skill_name": "string"
+      }
+    },
+    {
+      "skill_id": "bughunter.classify_url",
+      "description": "Classify a supplied HTTP or HTTPS URL against the BugHunter vulnerability skill library; this does not test or exploit the URL.",
+      "permission": "read_only",
+      "arguments": {
+        "url": "HTTP or HTTPS URL to classify, maximum 2000 characters"
+      },
+      "argument_types": {
+        "url": "string"
+      }
+    },
+    {
+      "skill_id": "bughunter.local_audit",
+      "description": "Run a bounded, read-only static security scan of the JARVIS project and classify local API routes using Claude-BugHunter. No network requests, exploit attempts or source modifications.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
+      "skill_id": "bughunter.surface_local",
+      "description": "Rank the locally inventoried JARVIS API routes from the latest BugHunter audit manifest. Results are heuristic candidates, not verified vulnerabilities.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
+      "skill_id": "bughunter.triage_finding",
+      "description": "Run BugHunter 7-Question Gate triage on an existing Markdown finding inside JARVIS data/bughunter/findings.",
+      "permission": "read_only",
+      "arguments": {
+        "finding_name": "Existing finding Markdown filename only"
+      },
+      "argument_types": {
+        "finding_name": "string"
+      }
+    },
+    {
+      "skill_id": "bughunter.draft_report",
+      "description": "Create a BugHunter report draft from an existing finding inside the JARVIS BugHunter findings folder; writes only a new file under data/bughunter/reports and never overwrites.",
+      "permission": "autonomous",
+      "arguments": {
+        "finding_name": "Existing finding Markdown filename only",
+        "platform": "h1, hackerone, bugcrowd, intigriti or immunefi"
+      },
+      "argument_types": {
+        "finding_name": "string",
+        "platform": "string"
+      }
     }
   ]
 }

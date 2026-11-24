@@ -74,3 +74,12 @@ The backend exposes a bounded read-only static scanner for the JARVIS project:
 - The planner can call the read-only `security.scan_project` skill.
 
 The scanner checks supported text files for credential-like values and private-key material, plus selected unsafe Python APIs/configurations. It excludes VCS metadata, generated data, dependency caches and virtual environments, and enforces file-count and byte limits. Secret values are not included in findings. It performs no network activity, exploitation, arbitrary command execution, or automatic source edits. See `docs/security/RUNTIME-SECURITY-SCANNER.md` for details.
+
+
+## Claude-BugHunter runtime integration
+
+JARVIS registers seven trusted BugHunter skills: `bughunter.capabilities` lists the installed skill and command library; `bughunter.read_skill` retrieves one skill guide by exact directory name; `bughunter.classify_url` classifies an HTTP(S) URL without probing it; `bughunter.local_audit` runs the bounded static scanner and classifies three local JARVIS API routes without making network requests; `bughunter.surface_local` ranks the locally generated route-inventory manifest; `bughunter.triage_finding` runs the 7-Question Gate on an existing Markdown finding under `data/bughunter/findings`; and `bughunter.draft_report` creates a new platform-specific draft under `data/bughunter/reports` without overwriting an existing file. The local audit writes `data/bughunter/latest-local-audit.json` and a diagnostic log.
+
+The integration deliberately does not invoke `engine/engine.py` or its Claude Code permission-bypass runner. It makes no network requests during the local audit, does not scan external targets, exploit vulnerabilities, or run state-changing tests. Full active engagements remain a separate, explicitly scoped workflow and are not available as an autonomous voice action. Report drafting requires JARVIS approval and is constrained to a new file in the JARVIS report folder; findings are read-only and path-locked.
+
+Voice examples: “Jarvis, list BugHunter capabilities”; “Jarvis, read the hunt-idor skill”; “Jarvis, classify this URL: https://localhost:8766”; “Jarvis, run the local BugHunter audit”; “Jarvis, rank the local attack surface”; “Jarvis, triage finding test-id.md”; “Jarvis, draft a HackerOne report for test-id.md”.

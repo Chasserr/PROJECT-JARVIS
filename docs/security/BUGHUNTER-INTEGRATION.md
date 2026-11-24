@@ -15,9 +15,7 @@ The official Windows installer was run with `-Agents -NoProfile`. It installed t
 
 ## Integration boundary
 
-This is currently a **development-time integration**: Codex can use the BugHunter knowledge skills while working in the JARVIS repository. The local JARVIS project skill directs defensive reviews to the relevant BugHunter methodology and sets a local-only, read-only default.
-
-The JARVIS application runtime (Gemma/LM Studio assistant) does **not** automatically load or execute the 84 Codex/Claude Agent Skills. Those repository skills remain advisory Markdown for development-time use, not executable runtime permissions. JARVIS now has a separate native static scanner implemented in trusted backend code and registered as the read-only security.scan_project skill. It is not a runtime wrapper around the BugHunter repository.
+The integration has two distinct layers. Codex and Claude Code can use the 84 Agent Skills as development-time methodology. Separately, the JARVIS application runtime now has a native, allowlisted bridge to the installed BugHunter CLI and skill library. The runtime does not dynamically load or execute arbitrary Agent Skill Markdown as code; every executable operation is implemented in trusted JARVIS backend handlers and registered in `backend/config/skills.json`.
 
 ## Safety and maintenance
 
@@ -31,6 +29,12 @@ The JARVIS application runtime (Gemma/LM Studio assistant) does **not** automati
 
 The native JARVIS scanner is available through POST /api/v1/security/scan, GET /api/v1/security/report, and GET /api/v1/security/status. The root JARVIS desktop app proxies these routes and recognizes the voice commands “Run a security scan” and “Read the security report”. Reports are stored locally in the ignored data/security-reports/latest.json file. The scanner is bounded, local-only, read-only for source files, redacts credential values, and writes only its report. See RUNTIME-SECURITY-SCANNER.md.
 
+## BugHunter runtime skills
+
+JARVIS exposes seven fixed backend skills: `bughunter.capabilities`, `bughunter.read_skill`, `bughunter.classify_url`, `bughunter.local_audit`, `bughunter.surface_local`, `bughunter.triage_finding`, and `bughunter.draft_report`. They are registered in the declarative manifest and dispatched through trusted Python handlers. Skill reads and URL classification are local operations; URL classification does not send a request to the supplied host.
+
+The local audit runs the bounded static scanner over the JARVIS project, classifies three local API route patterns, and writes a local route-inventory manifest plus JSON/log reports under `data/bughunter`. It makes no network requests and does not run exploit tests. Triage accepts only an existing Markdown filename within `data/bughunter/findings`. Report drafting writes a new file only within `data/bughunter/reports`, refuses overwrite, and requires JARVIS approval. Active BugHunter hunting and external recon are not exposed as autonomous runtime actions.
+
 ## Future extensions
 
-The current scanner is a lightweight static check, not the full BugHunter suite, a dependency audit, or a penetration test. Future work may add reviewed dependency checks and richer SAST rules. External reconnaissance, Burp/HackerOne integrations, and automatic remediation remain out of scope unless separately requested and explicitly approved. Any source-code remediation must be a distinct approval-gated operation.
+The current scanner is a lightweight static check, not a dependency audit or penetration test. Future work may add reviewed dependency checks and richer SAST rules. External reconnaissance, Burp/HackerOne integrations, and automatic remediation remain out of scope unless separately requested and explicitly approved. Any source-code remediation must be a distinct approval-gated operation.
