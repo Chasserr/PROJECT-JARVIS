@@ -81,6 +81,38 @@ async def test_critic_uses_conservative_process_success_fallback():
 
 
 @pytest.mark.asyncio
+async def test_critic_verifies_successful_bughunter_capability_inventory_without_llm():
+    from jarvis.agent.llm_planner import LLMCritic
+
+    provider = FakeProvider("")
+    critic = LLMCritic(provider)
+    verified, note = await critic.verify(
+        "List BugHunter capabilities",
+        [{"step": 0, "skill_id": "bughunter.capabilities", "result": {
+            "available": True, "skills": ["hunt-xss", "hunt-sqli"],
+            "cli_operations": ["recon", "surface"]
+        }}],
+    )
+    assert verified is True
+    assert "2 skills available" in note
+    assert provider.messages is None
+
+
+@pytest.mark.asyncio
+async def test_critic_does_not_verify_unavailable_bughunter_inventory():
+    from jarvis.agent.llm_planner import LLMCritic
+
+    critic = LLMCritic(FakeProvider(""))
+    with pytest.raises(ValueError):
+        await critic.verify(
+            "List BugHunter capabilities",
+            [{"step": 0, "skill_id": "bughunter.capabilities", "result": {
+                "available": False, "skills": [], "cli_operations": []
+            }}],
+        )
+
+
+@pytest.mark.asyncio
 async def test_critic_does_not_fallback_for_failed_process():
     from jarvis.agent.llm_planner import LLMCritic
 

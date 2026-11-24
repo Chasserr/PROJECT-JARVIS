@@ -1,4 +1,4 @@
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+﻿from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -11,7 +11,7 @@ GROQ_KEY=os.environ.get("GROQ_API_KEY","").strip()
 GROQ_URL=os.environ.get("GROQ_BASE_URL","https://api.groq.com/openai/v1").rstrip("/")
 JARVIS_PROVIDER=os.environ.get("JARVIS_PROVIDER","groq" if GROQ_KEY else "lm_studio").strip().lower()
 MODEL=os.environ.get("JARVIS_MODEL", "openai/gpt-oss-120b" if JARVIS_PROVIDER=="groq" else "google/gemma-4-e2b")
-ELEVENLABS_VOICE_ID="JBFqnCBsd6RMkjVDRZzb"
+ELEVENLABS_VOICE_ID=os.environ.get("JARVIS_ELEVENLABS_VOICE_ID", "DODLEQrClDo8wCz460ld").strip()
 ELEVENLABS_API_KEY=os.environ.get("ELEVENLABS_API_KEY", "").strip()
 DB=ROOT/"jarvis_memory.sqlite3"
 MODEL_LOCK=threading.Lock()
@@ -588,7 +588,7 @@ class Handler(SimpleHTTPRequestHandler):
                 d["lm_studio"]=JARVIS_PROVIDER=="lm_studio"
             except Exception as e: d["error"]=str(e)
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
-        if self.path=="/api/voice/status": return self.send_json(200,{"provider":"ElevenLabs","voice":"George - Warm British Baritone","voice_id":ELEVENLABS_VOICE_ID,"configured":bool(ELEVENLABS_API_KEY)})
+        if self.path=="/api/voice/status": return self.send_json(200,{"provider":"ElevenLabs","voice":"Lauren B - Friendly & Comforting","voice_id":ELEVENLABS_VOICE_ID,"configured":bool(ELEVENLABS_API_KEY)})
         if self.path=="/api/computer/vision":
             try:
                 answer,model,screen,image_size=ask_vision("Describe the visible Windows desktop and identify the foreground application and its most important visible controls. Be concise.",350)
