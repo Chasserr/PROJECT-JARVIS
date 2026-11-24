@@ -67,3 +67,11 @@ The modular backend is being built alongside the existing Windows app to preserv
 The new FastAPI service currently runs separately at `http://127.0.0.1:8766`; the legacy dashboard/service remains on its existing port. Development currently uses Python 3.13 because this PC has Python 3.13 and 3.15 installed, but not 3.12. The new backend declares Python 3.12+ compatibility.
 
 **Security status:** the new API is loopback-only. Memory content is encrypted at rest with Windows DPAPI, and the agent kill switch and approval gates are enforced. Credentials and other SQLite metadata are not yet encrypted, and authenticated remote access, rate limits and sandbox hardening remain incomplete. Do not expose the new service remotely.
+
+## Security review workflow
+
+- Claude-BugHunter is maintained separately at `E:\AI-TOOLS\Claude-BugHunter`.
+- Its Agent Skills are installed for Codex in the user-level `.agents\skills` directory.
+- This repository includes `.agents/skills/jarvis-security-review/SKILL.md` for defensive, local-only reviews of JARVIS using the BugHunter knowledge bundle.
+- Integration notes and the current boundary are documented in `docs/security/BUGHUNTER-INTEGRATION.md`.
+- This is a development-time Codex integration, not a live JARVIS runtime scanner. The running assistant does not automatically execute BugHunter skills.
