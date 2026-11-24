@@ -25,11 +25,11 @@ def db():
     conn.execute("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, task TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)")
     return conn
 
-def core_memory_request(method, path, data=None):
+def core_memory_request(method, path, data=None, timeout=8):
     payload=json.dumps(data or {}).encode() if data is not None else None
     req=urllib.request.Request("http://127.0.0.1:8766"+path,data=payload,
                                headers={"Content-Type":"application/json"},method=method)
-    with urllib.request.urlopen(req,timeout=8) as response:
+    with urllib.request.urlopen(req,timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -612,6 +612,13 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path=="/api/computer/files":
             try: return self.send_json(200,browse_path(self.headers.get("X-Jarvis-Path",str(Path.home()))))
             except Exception as e: return self.send_json(400,{"error":str(e)})
+        if self.path=="/api/security/status":
+            try: return self.send_json(200,core_memory_request("GET","/api/v1/security/status"))
+            except Exception: return self.send_json(503,{"error":"JARVIS security service is unavailable."})
+        if self.path=="/api/security/report":
+            try: return self.send_json(200,core_memory_request("GET","/api/v1/security/report"))
+            except urllib.error.HTTPError as e: return self.send_json(404 if e.code==404 else 503,{"error":"No security report is available yet."})
+            except Exception: return self.send_json(503,{"error":"JARVIS security service is unavailable."})
         if self.path=="/api/memory": return self.send_json(200,{"memories":get_memories()})
         if self.path=="/api/reminders": return self.send_json(200,{"reminders":get_reminders()})
         if self.path=="/api/time":
@@ -635,6 +642,14 @@ class Handler(SimpleHTTPRequestHandler):
         try: data=self.read_body()
         except ValueError as e: return self.send_json(413,{"error":str(e)})
         except Exception: return self.send_json(400,{"error":"Invalid JSON"})
+        if self.path=="/api/security/scan":
+            try:
+                report=core_memory_request("POST","/api/v1/security/scan",{},timeout=60)
+                return self.send_json(200,report)
+            except urllib.error.HTTPError as e:
+                return self.send_json(503,{"error":"JARVIS security scan failed (core service HTTP "+str(e.code)+")."})
+            except Exception:
+                return self.send_json(503,{"error":"JARVIS security service is unavailable. Start the JARVIS Core Backend first."})
         if self.path=="/api/voice/local-listen":
             seconds=data.get("seconds",6)
             if not isinstance(seconds,int) or not 2<=seconds<=15:

@@ -10,6 +10,15 @@ def test_health_endpoint():
     assert response.json()["status"] == "online"
 
 
+def test_security_scanner_is_registered_and_status_is_available():
+    with TestClient(app) as client:
+        skills = client.get("/api/v1/skills").json()["skills"]
+        status = client.get("/api/v1/security/status")
+    assert any(item["skill_id"] == "security.scan_project" for item in skills)
+    assert status.status_code == 200
+    assert status.json()["available"] is True
+
+
 def test_voice_options_endpoint_reports_installed_languages():
     with TestClient(app) as client:
         response = client.get("/api/v1/voice/options")

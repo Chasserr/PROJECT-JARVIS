@@ -63,3 +63,14 @@ Agent tasks are now stored in the local SQLite database. The API exposes:
 - Task plans, completed step results, errors and final status are persisted as the task runs.
 
 On backend restart, tasks that were pending, running or awaiting approval are marked failed with an interruption warning. JARVIS deliberately does not automatically replay an in-flight action or restore an old approval, because the last external action may already have happened. Review the recorded results before retrying.
+
+
+## Local security scanner
+
+The backend exposes a bounded read-only static scanner for the JARVIS project:
+- `GET /api/v1/security/status` reports scanner availability and the latest summary.
+- `POST /api/v1/security/scan` scans the fixed project root and writes only `data/security-reports/latest.json`.
+- `GET /api/v1/security/report` returns the latest redacted report.
+- The planner can call the read-only `security.scan_project` skill.
+
+The scanner checks supported text files for credential-like values and private-key material, plus selected unsafe Python APIs/configurations. It excludes VCS metadata, generated data, dependency caches and virtual environments, and enforces file-count and byte limits. Secret values are not included in findings. It performs no network activity, exploitation, arbitrary command execution, or automatic source edits. See `docs/security/RUNTIME-SECURITY-SCANNER.md` for details.

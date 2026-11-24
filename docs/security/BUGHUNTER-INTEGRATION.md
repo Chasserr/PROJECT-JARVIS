@@ -17,7 +17,7 @@ The official Windows installer was run with `-Agents -NoProfile`. It installed t
 
 This is currently a **development-time integration**: Codex can use the BugHunter knowledge skills while working in the JARVIS repository. The local JARVIS project skill directs defensive reviews to the relevant BugHunter methodology and sets a local-only, read-only default.
 
-The JARVIS application runtime (Gemma/LM Studio assistant) does **not** automatically load Codex Agent Skills. No BugHunter scanner, external recon workflow, Burp MCP server, or HackerOne MCP server has been connected to the running JARVIS API. The repository's skills are advisory Markdown, not executable runtime permissions.
+The JARVIS application runtime (Gemma/LM Studio assistant) does **not** automatically load or execute the 84 Codex/Claude Agent Skills. Those repository skills remain advisory Markdown for development-time use, not executable runtime permissions. JARVIS now has a separate native static scanner implemented in trusted backend code and registered as the read-only security.scan_project skill. It is not a runtime wrapper around the BugHunter repository.
 
 ## Safety and maintenance
 
@@ -27,6 +27,10 @@ The JARVIS application runtime (Gemma/LM Studio assistant) does **not** automati
 - Keep tests limited to JARVIS code, local test fixtures, and explicitly authorized systems.
 - Do not put API keys, HackerOne tokens, cookies, or scan evidence containing secrets into Git.
 
-## Next runtime integration stage
+## Runtime scanner now implemented
 
-If a JARVIS in-app security feature is desired, implement a dedicated, reviewed, read-only audit handler in JARVIS's own trusted code. It should accept only approved project roots, avoid returning secret values, enforce file-size and timeout limits, audit each run, and never perform network probing or exploitation by default. Register it through `backend/config/skills.json` only after its handler and tests exist. Consequential remediation must remain approval-gated.
+The native JARVIS scanner is available through POST /api/v1/security/scan, GET /api/v1/security/report, and GET /api/v1/security/status. The root JARVIS desktop app proxies these routes and recognizes the voice commands “Run a security scan” and “Read the security report”. Reports are stored locally in the ignored data/security-reports/latest.json file. The scanner is bounded, local-only, read-only for source files, redacts credential values, and writes only its report. See RUNTIME-SECURITY-SCANNER.md.
+
+## Future extensions
+
+The current scanner is a lightweight static check, not the full BugHunter suite, a dependency audit, or a penetration test. Future work may add reviewed dependency checks and richer SAST rules. External reconnaissance, Burp/HackerOne integrations, and automatic remediation remain out of scope unless separately requested and explicitly approved. Any source-code remediation must be a distinct approval-gated operation.

@@ -75,3 +75,8 @@ The new FastAPI service currently runs separately at `http://127.0.0.1:8766`; th
 - This repository includes `.agents/skills/jarvis-security-review/SKILL.md` for defensive, local-only reviews of JARVIS using the BugHunter knowledge bundle.
 - Integration notes and the current boundary are documented in `docs/security/BUGHUNTER-INTEGRATION.md`.
 - This is a development-time Codex integration, not a live JARVIS runtime scanner. The running assistant does not automatically execute BugHunter skills.
+
+
+## Runtime security scanner
+
+JARVIS now has a local read-only security scanner. Say **“Run a security scan”** to scan the JARVIS project, or **“Read the security report”** to hear the latest summary. Reports are saved under `data/security-reports/latest.json`. The scanner checks for exposed credential patterns and selected unsafe code patterns; it redacts secret values, does not use the network, and never edits source files. Detailed scope and limitations: `docs/security/RUNTIME-SECURITY-SCANNER.md`.

@@ -20,7 +20,13 @@ from jarvis.providers.base import ChatProvider
 from jarvis.providers.claude import ClaudeProvider
 from jarvis.providers.openai_compatible import OpenAICompatibleProvider
 from jarvis.providers.router import FallbackProvider
-from jarvis.skills import browser_control, pc_control, voice_control, web_intelligence
+from jarvis.skills import (
+    browser_control,
+    pc_control,
+    security_scanner,
+    voice_control,
+    web_intelligence,
+)
 from jarvis.skills.manifest import load_skill_manifest
 from jarvis.skills.raea import RaeaSkill, RaeaUnavailable
 from jarvis.skills.windows_sandbox import run_restricted_worker
@@ -90,6 +96,9 @@ def _build_agent() -> Agent:
             run_restricted_worker, "text.stats", {"text": args["text"]}
         ),
         "memory.search": _search_memories,
+        "security.scan_project": lambda _: asyncio.to_thread(
+            security_scanner.scan_project, PROJECT_ROOT, PROJECT_ROOT / "data" / "security-reports"
+        ),
         "web.search": lambda args: web_intelligence.search_web(args["query"], args.get("limit", 5)),
         "web.read_page": lambda args: web_intelligence.read_page(args["url"]),
         "system.status": lambda _: asyncio.to_thread(pc_control.system_status),
@@ -277,6 +286,49 @@ async def health() -> dict[str, str | bool]:
 async def list_skills() -> dict[str, Any]:
     catalog = _skill_catalog()
     return {"count": len(catalog), "skills": catalog}
+
+
+@app.get("/api/v1/security/status")
+async def security_status() -> dict[str, Any]:
+    report = security_scanner.load_latest_report(PROJECT_ROOT / "data" / "security-reports")
+    return {
+        "skill_id": "security.scan_project",
+        "available": True,
+        "latest_report_available": report is not None,
+        "latest_scan": (
+            {"scan_id": report.get("scan_id"), "created_at": report.get("created_at"),
+             "summary": report.get("summary")}
+            if report else None
+        ),
+    }
+
+
+@app.post("/api/v1/security/scan")
+async def security_scan() -> dict[str, Any]:
+    try:
+        report = await asyncio.to_thread(
+            security_scanner.scan_project, PROJECT_ROOT, PROJECT_ROOT / "data" / "security-reports"
+        )
+        memory.audit(
+            actor="user", action="security.scan", resource="PROJECT-JARVIS",
+            decision="completed", reason="Read-only local static security scan completed.",
+            metadata={"scan_id": report["scan_id"], "summary": report["summary"]},
+        )
+        return report
+    except (OSError, ValueError, RuntimeError) as exc:
+        memory.audit(
+            actor="system", action="security.scan", resource="PROJECT-JARVIS",
+            decision="failed", reason=type(exc).__name__,
+        )
+        raise HTTPException(status_code=500, detail=f"Security scan failed: {exc}") from exc
+
+
+@app.get("/api/v1/security/report")
+async def security_report() -> dict[str, Any]:
+    report = security_scanner.load_latest_report(PROJECT_ROOT / "data" / "security-reports")
+    if report is None:
+        raise HTTPException(status_code=404, detail="No security report exists yet. Run a scan first.")
+    return report
 
 
 @app.post("/api/v1/agent/plan")

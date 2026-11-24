@@ -202,8 +202,9 @@ def close_window(title: str) -> dict[str, Any]:
 
 def _allowed_roots() -> list[Path]:
     home = Path.home().resolve()
+    project_root = Path(__file__).resolve().parents[4]
     return [(home / name).resolve() for name in ("Desktop", "Downloads", "Documents")
-            if (home / name).exists()] + [(home / "Desktop" / "PROJECT-JARVIS").resolve()]
+            if (home / name).exists()] + [project_root.resolve()]
 
 
 def _safe_user_path(raw: str) -> Path:

@@ -2,6 +2,13 @@
   "schema_version": 1,
   "skills": [
     {
+      "skill_id": "security.scan_project",
+      "description": "Run a bounded, read-only static security scan of the JARVIS project for exposed secrets and common unsafe code patterns. No network access or source modifications.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
       "skill_id": "sandbox.text.stats",
       "description": "Analyze the character, word and line counts of supplied text in a low-integrity restricted worker process. No file, network, browser or desktop access is provided by this operation.",
       "permission": "read_only",
