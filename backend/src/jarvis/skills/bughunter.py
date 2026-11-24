@@ -194,6 +194,10 @@ def local_audit() -> dict[str, Any]:
     result = {
         "tool": "Claude-BugHunter",
         "workflow": "JARVIS-local-read-only-audit",
+        "returncode": 0 if surface["return_code"] == 0 and all(
+            item["return_code"] == 0 for item in classifications.values()
+        ) else 1,
+        "output_exists": True,
         "scope": str(PROJECT_ROOT),
         "jarvis_static_scan": {
             "scan_id": static_scan["scan_id"],

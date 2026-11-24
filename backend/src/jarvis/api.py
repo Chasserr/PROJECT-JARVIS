@@ -39,11 +39,17 @@ raea = RaeaSkill(PROJECT_ROOT)
 
 
 def _provider() -> ChatProvider:
+    endpoint = settings.local_base_url.lower()
+    local_name = (
+        "lm_studio" if ":1234" in endpoint
+        else "ollama" if ":11434" in endpoint
+        else "openai_compatible"
+    )
     local = OpenAICompatibleProvider(
         base_url=settings.local_base_url,
         api_key=settings.local_api_key,
         model=settings.local_model,
-        name="ollama",
+        name=local_name,
     )
     if (
         settings.provider.lower() == "claude"
