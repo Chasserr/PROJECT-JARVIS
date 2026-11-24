@@ -1,0 +1,5 @@
+/* JARVIS: uploaded spiral-galaxy video background */
+.galaxy-background{position:fixed;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;object-position:center center;opacity:.78;filter:brightness(.58) saturate(1.18);pointer-events:none;background:#02040a}
+.backdrop{z-index:1;background:linear-gradient(180deg,rgba(1,3,8,.16),rgba(1,3,8,.32))!important}
+.app-shell{position:relative;z-index:2}
+@media(prefers-reduced-motion:reduce){.galaxy-background{display:none}}

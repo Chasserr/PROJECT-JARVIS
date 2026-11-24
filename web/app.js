@@ -1,8 +1,8 @@
-const $=s=>document.querySelector(s),messages=[];let wakeRec=null,wakeOn=true,awaitingCommand=false,conversationActive=false,processing=false,restartTimer=null,lastSpeechAt=0,pendingCloseApp=null;
+﻿const $=s=>document.querySelector(s),messages=[];let wakeRec=null,localListening=false,wakeOn=true,awaitingCommand=false,conversationActive=false,processing=false,restartTimer=null,lastSpeechAt=0,pendingCloseApp=null;
 function add(role,text){const sub=$("#subheadline");if(sub)sub.textContent=String(text).slice(0,150);console.log("[JARVIS]",role,text)}
 function setState(s){$("#state").textContent=s;$("#mic").classList.toggle("listening",s==="LISTENING");$("#mic").classList.toggle("speaking",s==="SPEAKING");$("#mic").classList.toggle("thinking",s==="THINKING");$("#headline").innerHTML=s==="LISTENING"?'I’m listening<span>.</span>':s==="SPEAKING"?'Speaking<span>.</span>':s==="THINKING"?'One moment<span>.</span>':'I’m here<span>.</span>';$("#subheadline").textContent=s==="LISTENING"?"Go ahead. I'm listening to you.":s==="SPEAKING"?"JARVIS is responding.":s==="THINKING"?"Let me think that through.":"Say “Jarvis” or tap the orb to start a conversation."}
-async function health(){try{const r=await fetch("/api/health"),d=await r.json();$("#statusDot").style.background=d.lm_studio?"#5ee0b0":"#e2b66b";$("#statusText").textContent=d.lm_studio?"AI CONNECTED":"MODEL OFFLINE";$("#modelLabel").textContent="MODEL: "+d.model;const sel=$("#modelSelect"),old=sel.value;if(d.models?.length){sel.replaceChildren(...d.models.map(m=>{const o=document.createElement("option");o.value=m;o.textContent=m.replace("google/","");return o}));sel.value=d.models.includes(old)?old:d.model}}catch{$("#statusText").textContent="APP OFFLINE"}}
-async function send(text){text=String(text||"").trim().replace(/^[\s,.:;!?-]*/,"").replace(/^(?:(?:(?:hey|okay|ok|open|wake up)\s+)?jarvis\b[\s,.:;!?-]*)+/i,"").replace(/^[\s,.:;!?-]*/,"").replace(/\bcap\s*cuts?\b/ig,"CapCut").trim().replace(/^(?:(?:uh|um|erm|well)\b[\s,.:;!?-]*)+/i,"").trim();if(!text||/^(?:hey\s+)?open\s+jarvis[?.!]*$/i.test(text)||processing)return;processing=true;if($("#prompt"))$("#prompt").value="";add("user",text);messages.push({role:"user",content:text});setState("THINKING");try{
+async function health(){try{const r=await fetch("/api/health",{cache:"no-store"}),d=await r.json();const online=r.ok&&d.app==="online"&&d.llm_available===true;$("#statusDot").style.background=online?"#5ee0b0":"#e2b66b";$("#statusText").textContent=online?"AI CONNECTED":"MODEL OFFLINE";$("#modelLabel").textContent="MODEL: "+(d.model||"not selected");const sel=$("#modelSelect"),old=sel.value;if(d.models?.length){sel.replaceChildren(...d.models.map(m=>{const o=document.createElement("option");o.value=m;o.textContent=m.replace("google/","");return o}));sel.value=d.models.includes(old)?old:(d.model||"")}}catch{$("#statusText").textContent="APP OFFLINE"}}
+async function send(text){const original=String(text||"").trim();const wakeOnly=/^(?:(?:hey|okay|ok|open|wake up)\s+)?jarvis[,.!\s]*$/i.test(original);text=original.replace(/^[\s,.:;!?-]*/,"").replace(/^(?:(?:(?:hey|okay|ok|open|wake up)\s+)?jarvis\b[\s,.:;!?-]*)+/i,"").replace(/^[\s,.:;!?-]*/,"").replace(/\bcap\s*cuts?\b/ig,"CapCut").trim().replace(/^(?:(?:uh|um|erm|well)\b[\s,.:;!?-]*)+/i,"").trim();if(wakeOnly)text="Hello Jarvis. Greet me briefly and let me know you are ready.";if(!text||/^(?:hey\s+)?open\s+jarvis[?.!]*$/i.test(text)||processing)return;processing=true;if($("#prompt"))$("#prompt").value="";add("user",text);messages.push({role:"user",content:text});setState("THINKING");try{
 const say=v=>{messages.push({role:"assistant",content:v});add("assistant",v);speak(v)};
 const call=async(url,body)=>{const r=await fetch(url,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||"Request failed");return d};
 let m;
@@ -24,10 +24,10 @@ if((m=text.replace(/\bcap\s*cuts?\b/ig,"CapCut").match(/^(?:(?:hey\s+)?jarvis[,.
 if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:search (?:the )?web for|search the internet for|look up online|google)\s+(.+?)[?.!]*$/i))){const d=await call("/api/search/answer",{query:m[1]});const sourceLine=d.sources?.length?" Sources: "+d.sources.map(x=>x.title).join("; ")+".":"";say((d.answer||"I couldn't find a useful answer.")+sourceLine);return}
 if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:find|search for)\s+(.+?)(?:\s+in\s+(desktop|documents|downloads))?[?.!]*$/i))){const d=await call("/api/files/search",{query:m[1],folder:(m[2]||"downloads").toLowerCase()});say(d.files.length?"I found "+d.files.length+" matching file(s): "+d.files.slice(0,8).map(x=>x.replace(/^.*[\\/]/,"")).join(", ")+(d.files.length>8?". There are more results.":"."):"I couldn't find matching files in "+(m[2]||"Downloads")+".");return}
 if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:create|make)\s+(?:a\s+)?folder\s+(?:called\s+|named\s+)?(.+?)(?:\s+in\s+(desktop|documents|downloads))?[?.!]*$/i))){const d=await call("/api/files/folder",{name:m[1].trim(),folder:(m[2]||"documents").toLowerCase()});say("Created folder "+d.path+".");return}
-if(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:show|list|read)\s+(?:my\s+)?reminders[?.!]*$/i.test(text)){const d=await call("/api/reminders");say(d.reminders.length?"Your reminders: "+d.reminders.map(x=>(x.done?"Completed: ":"")+x.task+(x.due?" ("+x.due+")":"")).join("; "):"You don't have any reminders saved.");return}
-if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?remind me to\s+(.+?)[?.!]*$/i))){const d=await call("/api/reminders",{task:m[1].trim()});say("Reminder saved: "+d.reminder.task+". You can ask me to show your reminders.");return}
-const status=await call("/api/health");if(!status.lm_studio){say("My AI chat model is offline right now. Local PC commands, time and weather are still available.");return}const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})}),d=await r.json();if(!r.ok)throw Error(d.error);messages.push({role:"assistant",content:d.reply});add("assistant",d.reply);speak(d.reply)
-}catch(e){const msg=String(e.message||e);const friendly=/10061|LM Studio|ECONNREFUSED|Failed to fetch/i.test(msg)?"My AI chat model is offline right now. Local PC commands, time and weather are still available.":"That command failed: "+msg;add("assistant",friendly);speak(friendly)}finally{processing=false}}async function speak(t){if(wakeRec){const r=wakeRec;wakeRec=null;r.stop()}if("speechSynthesis"in window)speechSynthesis.cancel();const resume=()=>{conversationActive=false;if(wakeOn){startWake()}else setState("SYSTEM READY")};try{const status=await fetch("/api/voice/status").then(r=>r.json());if(status.configured){setState("SPEAKING");const response=await fetch("/api/voice/speak",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});if(!response.ok){const err=await response.json();throw Error(err.error||"ElevenLabs speech failed")}const audio=new Audio(URL.createObjectURL(await response.blob()));audio.onended=()=>{URL.revokeObjectURL(audio.src);resume()};audio.onerror=()=>{URL.revokeObjectURL(audio.src);resume()};await audio.play();return}}catch(e){add("assistant","ElevenLabs voice unavailable; using the browser voice for now. "+e.message)}if(!("speechSynthesis"in window)){setState("SYSTEM READY");return}const u=new SpeechSynthesisUtterance(t);u.rate=1;u.pitch=1.02;u.onstart=()=>setState("SPEAKING");u.onend=resume;speechSynthesis.speak(u)}
+if(/^(?:(?:hey\s+)?jarvis[,.! ]*)?(?:show|list|read)\s+(?:my\s+)?reminders[?.!]*$/i.test(text)){const d=await call("/api/reminders");loadReminders();say(d.reminders.length?"You have "+d.reminders.filter(x=>!x.done).length+" active reminder(s): "+d.reminders.filter(x=>!x.done).map(x=>x.task+(x.due?" (due "+formatReminderDate(x.due)+")":"")).join("; "):"You don't have any active reminders.");return}
+if((m=text.match(/^(?:(?:hey\s+)?jarvis[,.! ]*)?remind me to\s+(.+?)[?.!]*$/i))){const parsed=parseReminderRequest(m[1].trim());const d=await call("/api/reminders",parsed);say("Reminder saved: "+d.reminder.task+(d.reminder.due?". I'll notify you at "+formatReminderDate(d.reminder.due)+".":". You can ask me to show your reminders."));loadReminders();return}
+const status=await call("/api/health");if(status.llm_available!==true){const reason=status.error||"No available model was returned by the active provider.";throw Error("AI model unavailable: "+reason)}const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})}),d=await r.json();if(!r.ok)throw Error(d.error);messages.push({role:"assistant",content:d.reply});add("assistant",d.reply);speak(d.reply)
+}catch(e){const msg=String(e.message||e);const friendly=/10061|LM Studio|ECONNREFUSED|Failed to fetch/i.test(msg)?"My AI chat model is offline right now. Local PC commands, time and weather are still available.":"That command failed: "+msg;add("assistant",friendly);speak(friendly)}finally{processing=false}}async function speak(t){if(wakeRec){const r=wakeRec;wakeRec=null;r.stop()}if("speechSynthesis"in window)speechSynthesis.cancel();const resume=()=>{conversationActive=false;if(wakeOn){startWake()}else setState("SYSTEM READY")};try{const status=await fetch("/api/voice/status").then(r=>r.json());if(status.configured){setState("SPEAKING");const response=await fetch("/api/voice/speak",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});if(!response.ok){const err=await response.json();throw Error(err.error||"ElevenLabs speech failed")}const audio=new Audio(URL.createObjectURL(await response.blob()));audio.onended=()=>{URL.revokeObjectURL(audio.src);resume()};audio.onerror=()=>{URL.revokeObjectURL(audio.src);resume()};await audio.play();return}setState("SPEAKING");const local=await fetch("/api/voice/local-speak",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});if(local.ok){await local.json();resume();return}}catch(e){add("assistant","Local voice unavailable; using the browser voice for now. "+e.message)}if(!("speechSynthesis"in window)){setState("SYSTEM READY");return}const u=new SpeechSynthesisUtterance(t);u.rate=1;u.pitch=1.02;u.onstart=()=>setState("SPEAKING");u.onend=resume;speechSynthesis.speak(u)}
 async function loadMemory(){const r=await fetch("/api/memory"),d=await r.json(),list=$("#memoryList");list.replaceChildren();d.memories.forEach(m=>{const row=document.createElement("div");row.className="memory-row";const span=document.createElement("span");span.textContent=m.note;const del=document.createElement("button");del.textContent="×";del.title="Delete memory";del.onclick=()=>deleteMemory(m.id);row.append(span,del);list.append(row)})}
 async function deleteMemory(id){await fetch("/api/memory",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});loadMemory()}
 $("#saveMemory").onclick=async()=>{const note=$("#memoryInput").value.trim();if(!note)return;const r=await fetch("/api/memory",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note})}),d=await r.json();if(!r.ok){add("assistant",d.error);return}$("#memoryInput").value="";loadMemory();add("assistant","Saved to JARVIS memory.")};
@@ -35,10 +35,10 @@ $("#modelSelect").onchange=async e=>{try{const r=await fetch("/api/model",{metho
 $("#chatForm").onsubmit=e=>{e.preventDefault();send($("#prompt").value)};$("#clear").onclick=()=>{messages.length=0;box.innerHTML='<div class="empty-state"><div class="empty-mark">✦</div><div><b>Conversation cleared</b><span>Ask JARVIS something new.</span></div></div>'};
 document.querySelectorAll("[data-action]").forEach(b=>b.onclick=async()=>{const r=await fetch("/api/action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:b.dataset.action})}),d=await r.json();add("assistant",d.message||d.error)});
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-function startWake(){if(!wakeOn||!SR||wakeRec)return;const rec=new SR();wakeRec=rec;rec.continuous=true;rec.interimResults=false;rec.lang="en-US";rec.onstart=()=>{setState(conversationActive?"LISTENING":"STANDING BY")};rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(!e.results[i].isFinal)continue;const phrase=e.results[i][0].transcript.trim();if(!phrase)continue;lastSpeechAt=Date.now();const wakeOnly=/^(?:(?:hey|okay|ok|open|wake up)\s+)?jarvis[,.!\s]*$/i.test(phrase)||/^(?:hey|okay|ok)\s+jarvis[,.!\s]*$/i.test(phrase);if(conversationActive){if(wakeOnly)continue;conversationActive=false;send(phrase);continue}if(/hey jarvis|ok jarvis|okay jarvis|open jarvis|wake up jarvis|wake up|\bjarvis\b/i.test(phrase)){const wakePattern=/(?:hey\s+jarvis|okay\s+jarvis|ok\s+jarvis|open\s+jarvis|wake up jarvis|wake up|\bjarvis\b)/ig;let wakeMatch,lastWake=null;while((wakeMatch=wakePattern.exec(phrase))!==null)lastWake=wakeMatch;const command=lastWake?phrase.slice(lastWake.index+lastWake[0].length).trim():phrase;if(command){conversationActive=false;send(command)}else{conversationActive=true;setState("LISTENING")}}}};rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted"){add("assistant","Microphone listening issue: "+e.error);setState("MICROPHONE CHECK")}};rec.onend=()=>{if(wakeRec===rec)wakeRec=null;if(wakeOn&&!speechSynthesis.speaking){clearTimeout(restartTimer);restartTimer=setTimeout(()=>{if(wakeOn)startWake()},350)}};try{rec.start()}catch{wakeRec=null;setState("WAKE WORD PAUSED")}}
+function startWake(){if(!wakeOn||!SR||wakeRec||localListening)return;const rec=new SR();wakeRec=rec;rec.continuous=true;rec.interimResults=false;rec.lang="en-US";rec.onstart=()=>{setState(conversationActive?"LISTENING":"STANDING BY")};rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(!e.results[i].isFinal)continue;const phrase=e.results[i][0].transcript.trim();if(!phrase)continue;lastSpeechAt=Date.now();const wakeOnly=/^(?:(?:hey|okay|ok|open|wake up)\s+)?jarvis[,.!\s]*$/i.test(phrase)||/^(?:hey|okay|ok)\s+jarvis[,.!\s]*$/i.test(phrase);if(conversationActive){if(wakeOnly)continue;conversationActive=false;send(phrase);continue}if(/hey jarvis|ok jarvis|okay jarvis|open jarvis|wake up jarvis|wake up|\bjarvis\b/i.test(phrase)){const wakePattern=/(?:hey\s+jarvis|okay\s+jarvis|ok\s+jarvis|open\s+jarvis|wake up jarvis|wake up|\bjarvis\b)/ig;let wakeMatch,lastWake=null;while((wakeMatch=wakePattern.exec(phrase))!==null)lastWake=wakeMatch;const command=lastWake?phrase.slice(lastWake.index+lastWake[0].length).trim():phrase;if(command){conversationActive=false;send(command)}else{conversationActive=true;setState("LISTENING")}}}};rec.onerror=e=>{if(e.error!=="no-speech"&&e.error!=="aborted"){add("assistant","Microphone listening issue: "+e.error);setState("MICROPHONE CHECK")}};rec.onend=()=>{if(wakeRec===rec)wakeRec=null;if(wakeOn&&!localListening&&!speechSynthesis.speaking){clearTimeout(restartTimer);restartTimer=setTimeout(()=>{if(wakeOn)startWake()},350)}};try{rec.start()}catch{wakeRec=null;setState("WAKE WORD PAUSED")}}
 function stopWake(){wakeOn=false;conversationActive=false;awaitingCommand=false;if(wakeRec){const r=wakeRec;wakeRec=null;r.stop()}$("#wakeToggle").classList.remove("on");$("#wakeHint").textContent="Wake phrase paused";setState("SYSTEM READY")}
 $("#wakeToggle").onclick=()=>{if(wakeOn)stopWake();else if(!SR)add("assistant","Continuous wake listening requires Microsoft Edge or Chrome.");else{wakeOn=true;$("#wakeToggle").classList.add("on");$("#wakeHint").textContent='Wake phrase ready: “Open Jarvis”';startWake()}};
-$("#mic").onclick=()=>{if(!SR){add("assistant","Voice input is not supported in this browser. Open JARVIS in Microsoft Edge or Chrome.");return}if(wakeRec){const old=wakeRec;wakeRec=null;try{old.stop()}catch{}}awaitingCommand=false;const rec=new SR();rec.lang="en-US";rec.continuous=false;rec.interimResults=true;let heard="";rec.onstart=()=>setState("LISTENING");rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){heard=e.results[i][0].transcript;if(e.results[i].isFinal)send(heard)}};rec.onerror=e=>{const messages={"not-allowed":"Microphone access is blocked. Allow microphone access for this JARVIS app in Edge site permissions.","audio-capture":"No microphone was detected. Check your Windows input device.","no-speech":"I did not hear anything. Check your microphone and try again.","network":"Browser speech recognition could not connect. Try again."};add("assistant",messages[e.error]||("Voice input error: "+e.error));setState("SYSTEM READY")};rec.onend=()=>{if(wakeOn&&!speechSynthesis.speaking){wakeRec=null;setTimeout(startWake,500)}else setState("SYSTEM READY")};try{rec.start()}catch(e){add("assistant","Could not start microphone: "+e.message);if(wakeOn)setTimeout(startWake,500)}};
+$("#mic").onclick=async()=>{localListening=true;if(wakeRec){const old=wakeRec;wakeRec=null;try{old.stop()}catch{}}awaitingCommand=false;setState("LISTENING");add("system","Listening through the local Windows microphone for up to 6 seconds…");try{const response=await fetch("/api/voice/local-listen",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({seconds:6})});const result=await response.json();if(!response.ok)throw Error(result.error||"Local microphone unavailable");localListening=false;if(result.recognized&&result.text){await send(result.text)}else{add("assistant","I did not catch anything. Tap the core and try again.");if(wakeOn)setTimeout(startWake,500);else setState("SYSTEM READY")}}catch(error){localListening=false;add("assistant","Local microphone issue: "+error.message);if(wakeOn)setTimeout(startWake,500);else setState("SYSTEM READY")}};
 $("#settingsBtn").onclick=()=>$("#settings").classList.toggle("hidden");$("#closeSettings").onclick=()=>$("#settings").classList.add("hidden");$("#memoryToggle").onclick=()=>$("#memoryArea").classList.toggle("hidden");$("#attach").onclick=()=>$("#settings").classList.toggle("hidden");
 health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition is unavailable in this browser. Use Microsoft Edge.");setInterval(health,15000);
 (()=>{
@@ -101,7 +101,14 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
    $("#executePlan").disabled=!(d.steps||[]).length;
    if(!d.steps?.length){const note=document.createElement("small");note.textContent="JARVIS did not produce safe, actionable steps for this request.";preview.append(note)}
    panel.classList.remove("hidden");$("#settings").classList.add("hidden");
-   statusMsg("Plan ready · "+d.steps.length+" step(s) · review before execution");
+   if(d.steps?.length){
+    statusMsg("Executing "+d.steps.length+" planned action(s) automatically…");
+    const done=await api("/api/computer/execute-plan",{execute:true,steps:d.steps});
+    pendingPlan=null;$("#executePlan").disabled=true;
+    $("#taskPreview").append(document.createTextNode("\\nCompleted "+done.completed+" action(s)."));
+    statusMsg("Task completed · "+done.completed+" action(s)");
+    await refreshScreen();await refreshStatus();
+   }else{statusMsg("No safe actions were generated for this request.");}
    return d
   }catch(e){statusMsg(e.message);$("#taskPreview").textContent=e.message;throw e}
  }
@@ -111,8 +118,7 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
  $("#understandScreen").onclick=understandScreen;
  $("#executePlan").onclick=async()=>{
   if(!pendingPlan?.steps?.length)return;
-  if(!confirm("Execute the "+pendingPlan.steps.length+" computer actions shown above? Review the steps first."))return;
-  try{const d=await api("/api/computer/execute-plan",{confirm:true,steps:pendingPlan.steps});pendingPlan=null;$("#executePlan").disabled=true;$("#taskPreview").textContent="Completed "+d.completed+" action(s).";statusMsg("Task completed · "+d.completed+" action(s)");await refreshScreen();await refreshStatus()}
+  try{const d=await api("/api/computer/execute-plan",{execute:true,steps:pendingPlan.steps});pendingPlan=null;$("#executePlan").disabled=true;$("#taskPreview").textContent="Completed "+d.completed+" action(s).";statusMsg("Task completed · "+d.completed+" action(s)");await refreshScreen();await refreshStatus()}
   catch(e){statusMsg(e.message);add("assistant","The computer task stopped: "+e.message);refreshScreen()}
  };
  async function refreshStatus(){
@@ -166,3 +172,95 @@ health();loadMemory();if(SR)startWake();else add("assistant","Voice recognition 
 
 /* Wake-word bubble: the idle screen stays clean; the bubble appears only during interaction. */
 (()=>{const zone=document.querySelector(".orb-zone");if(!zone)return;let bubble=document.getElementById("wakeBubble");if(!bubble){bubble=document.createElement("div");bubble.id="wakeBubble";bubble.className="wake-bubble";bubble.setAttribute("aria-live","polite");zone.appendChild(bubble)}const state=document.getElementById("state");const sync=()=>{const s=(state?.textContent||"").toUpperCase();let label="";if(s.includes("LISTEN"))label="LISTENING";else if(s.includes("THINK"))label="THINKING";else if(s.includes("SPEAK"))label="SPEAKING";if(label){bubble.textContent=label;bubble.classList.add("visible")}else bubble.classList.remove("visible")};if(state){new MutationObserver(sync).observe(state,{childList:true,subtree:true,characterData:true});sync()}document.title="JARVIS";})();
+
+/* Reminder centre: persistent local tasks, explicit desktop-notification opt-in. */
+function formatReminderDate(value){
+ if(!value)return "No due date";
+ const date=new Date(value);
+ if(Number.isNaN(date.getTime()))return "Invalid date";
+ return new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",dateStyle:"medium",timeStyle:"short"}).format(date)+" (Spain)";
+}
+function parseReminderRequest(raw){
+ let task=raw.trim(),due=null,match;
+ match=task.match(/\s+in\s+(\d{1,4})\s+(minutes?|mins?|hours?|hrs?|days?)$/i);
+ if(match){
+  const amount=Number(match[1]),unit=match[2].toLowerCase();
+  const multiplier=unit.startsWith("min")?60000:unit.startsWith("hour")||unit.startsWith("hr")?3600000:86400000;
+  due=new Date(Date.now()+amount*multiplier).toISOString();task=task.slice(0,match.index).trim();
+ }else{
+  match=task.match(/\s+(tomorrow|today)(?:\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/i);
+  if(!match)match=task.match(/\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if(match){
+   const date=new Date();
+   let hour,minute;
+   if(match[1]==="tomorrow"||match[1]==="today"){
+    if(match[1].toLowerCase()==="tomorrow")date.setDate(date.getDate()+1);
+    hour=Number(match[2]||9);minute=Number(match[3]||0);
+    if(match[4]){const ap=match[4].toLowerCase();hour=hour%12+(ap==="pm"?12:0)}
+   }else{hour=Number(match[1]);minute=Number(match[2]||0);const ap=(match[3]||"").toLowerCase();if(ap)hour=hour%12+(ap==="pm"?12:0)}
+   if(hour>=0&&hour<=23&&minute>=0&&minute<=59){date.setHours(hour,minute,0,0);due=date.toISOString();task=task.slice(0,match.index).trim()}
+  }
+ }
+ if(!task)throw Error("Tell me what the reminder is for.");
+ return {task,due};
+}
+async function loadReminders(){
+ const list=$("#reminderList");if(!list)return;
+ try{
+  const response=await fetch("/api/reminders",{cache:"no-store"}),data=await response.json();
+  if(!response.ok)throw Error(data.error||"Could not load reminders.");
+  list.replaceChildren();
+  if(!data.reminders.length){const empty=document.createElement("span");empty.className="reminder-empty";empty.textContent="No reminders yet. Add one above or tell JARVIS: remind me to…";list.append(empty);return}
+  data.reminders.forEach(item=>{
+   const row=document.createElement("div");row.className="reminder-item"+(item.done?" is-done":"");
+   const body=document.createElement("div");body.className="reminder-item-body";
+   const title=document.createElement("b");title.textContent=item.task;
+   const due=document.createElement("small");due.textContent=item.due?formatReminderDate(item.due):"Whenever you're ready";
+   body.append(title,due);
+   const actions=document.createElement("div");actions.className="reminder-actions";
+   if(!item.done){const done=document.createElement("button");done.type="button";done.className="reminder-done";done.textContent="DONE";done.title="Mark reminder complete";done.onclick=async()=>{const r=await fetch("/api/reminders/complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id})});if(!r.ok)throw Error("Could not complete reminder.");loadReminders()};actions.append(done)}
+   const del=document.createElement("button");del.type="button";del.className="reminder-delete";del.textContent="×";del.title="Delete reminder";del.onclick=async()=>{const r=await fetch("/api/reminders",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id})});if(!r.ok)throw Error("Could not delete reminder.");loadReminders()};actions.append(del);
+   row.append(body,actions);list.append(row);
+  });
+ }catch(error){list.textContent=error.message}
+}
+function showReminderNotice(item){
+ const message="Reminder: "+item.task;
+ const notice=$("#reminderNotice");
+ if(notice){notice.textContent=message;notice.classList.add("visible");clearTimeout(showReminderNotice.timer);showReminderNotice.timer=setTimeout(()=>notice.classList.remove("visible"),12000)}
+ if("Notification"in window&&Notification.permission==="granted"){
+  const notification=new Notification("JARVIS reminder",{body:item.task,tag:"jarvis-"+item.id,icon:"/icons/core-regular/ai.svg"});
+  notification.onclick=()=>{window.focus();$("#settings").classList.remove("hidden");notification.close()};
+ }
+}
+async function checkDueReminders(){
+ try{
+  const r=await fetch("/api/reminders",{cache:"no-store"}),d=await r.json();if(!r.ok)return;
+  let seen={};try{seen=JSON.parse(localStorage.getItem("jarvis-notified-reminders")||"{}")||{}}catch{}
+  const now=Date.now();
+  for(const item of d.reminders){
+   if(item.done||!item.due||new Date(item.due).getTime()>now||seen[item.id])continue;
+   seen[item.id]=Date.now();showReminderNotice(item);
+  }
+  try{localStorage.setItem("jarvis-notified-reminders",JSON.stringify(seen))}catch{}
+ }catch(error){console.warn("[JARVIS] Reminder check failed",error)}
+}
+$("#reminderForm").onsubmit=async event=>{
+ event.preventDefault();const task=$("#reminderTask").value.trim(),rawDue=$("#reminderDue").value;
+ if(!task)return;
+ try{
+  const due=rawDue?new Date(rawDue).toISOString():null;
+  const response=await fetch("/api/reminders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task,due})}),data=await response.json();
+  if(!response.ok)throw Error(data.error||"Could not save reminder.");
+  $("#reminderTask").value="";$("#reminderDue").value="";await loadReminders();
+  const notice=$("#reminderNotice");notice.textContent="Saved: "+data.reminder.task;notice.classList.add("visible");setTimeout(()=>notice.classList.remove("visible"),4500);
+ }catch(error){$("#reminderNotice").textContent=error.message;$("#reminderNotice").classList.add("visible")}
+};
+$("#enableNotifications").onclick=async()=>{
+ if(!("Notification"in window)){add("assistant","This browser does not support desktop notifications.");return}
+ try{const permission=await Notification.requestPermission();$("#enableNotifications").textContent=permission==="granted"?"NOTIFICATIONS ON":permission==="denied"?"BLOCKED IN BROWSER":"NOTIFICATIONS OFF";add("assistant",permission==="granted"?"Desktop reminders are enabled. JARVIS will notify you while this dashboard is open.": "Notification permission was not granted. Reminders remain saved in JARVIS.");}
+ catch(error){add("assistant","Could not enable notifications: "+error.message)}
+};
+loadReminders();checkDueReminders();setInterval(loadReminders,30000);setInterval(checkDueReminders,15000);
+
+if(new URLSearchParams(window.location.search).has("reminders"))$("#settings").classList.remove("hidden");

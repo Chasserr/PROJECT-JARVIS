@@ -4,13 +4,13 @@ A free-first, local-first Windows desktop assistant powered by LM Studio and loc
 
 ## Features
 - Animated JARVIS voice interface with browser microphone input and ElevenLabs-compatible speech output (browser speech fallback)
-- Global Windows wake listener and conversational voice mode
+- Browser wake phrase listener and conversational voice mode; core backend can enumerate installed Windows speech voices and recognition languages and perform bounded dictation in a selected installed culture
 - Local chat through the LM Studio OpenAI-compatible API
 - SQLite personal memory and local reminders
 - Switching between installed Gemma 4 models
 - Allowlisted quick actions for Notepad, Calculator, File Explorer and browser
 - PC Control workspace: live desktop screenshot, local Gemma 4 visual understanding, UI Automation inspection, coordinate-based mouse clicks, double/right clicks, scrolling, keyboard typing and an approved shortcut set
-- AI Computer Operator: screenshot-grounded multi-step plans, previewed for review and executed only after explicit approval
+- AI Computer Operator: screenshot-grounded multi-step plans with autonomous execution for routine actions; destructive, financial, external-send and security-sensitive actions remain protected
 - File Explorer workspace: browse folders, open files, rename items and send items to the Windows Recycle Bin
 - Windows status view with active-window information and running-process inventory
 - Server binds to 127.0.0.1 only
@@ -38,7 +38,7 @@ Install Python dependencies from the project folder:
 - Refresh Screen captures the current Windows desktop. Click a location in the preview to click the same location on the PC.
 - Use the keyboard field to type into the currently focused application.
 - Shortcut buttons are intentionally allowlisted; dangerous system shortcuts and arbitrary shell execution are not exposed.
-- Ask JARVIS to plan a task in the AI Computer Operator panel. It uses a local screenshot and local Gemma 4 model to prepare up to 12 actions. Review the plan and press EXECUTE APPROVED PLAN to run it. Voice commands can start a plan with ?plan computer task: ??.
+- Ask JARVIS to perform a task in the AI Computer Operator panel. It uses a local screenshot and local Gemma 4 model to prepare up to 12 actions, then executes routine actions automatically. Destructive, financial, external-send and security-sensitive actions remain protected. Voice commands can start a plan with ?plan computer task: ??.
 - Browse a folder by entering its path. Open files/folders, rename items, or send files to the Recycle Bin. Trash operations require confirmation.
 - PyAutoGUI's fail-safe remains enabled: moving the mouse to the top-left corner can abort a stuck automation.
 
@@ -55,3 +55,15 @@ The HTTP server binds to 127.0.0.1, validates local Host/Origin headers and JSON
 
 ## License
 MIT ? see LICENSE.
+## Next-generation JARVIS architecture
+
+The modular backend is being built alongside the existing Windows app to preserve working desktop and mobile functionality.
+
+- Architecture: `docs/architecture/SYSTEM-ARCHITECTURE.md`
+- Phase tracker: `docs/architecture/PHASE-PLAN.md`
+- New backend: `backend/`
+- Backend setup and commands: `backend/README.md`
+
+The new FastAPI service currently runs separately at `http://127.0.0.1:8766`; the legacy dashboard/service remains on its existing port. Development currently uses Python 3.13 because this PC has Python 3.13 and 3.15 installed, but not 3.12. The new backend declares Python 3.12+ compatibility.
+
+**Security status:** the new API is loopback-only. Memory content is encrypted at rest with Windows DPAPI, and the agent kill switch and approval gates are enforced. Credentials and other SQLite metadata are not yet encrypted, and authenticated remote access, rate limits and sandbox hardening remain incomplete. Do not expose the new service remotely.

@@ -22,4 +22,21 @@ repair-*.py
 *.log
 *.log-*
 jarvis_memory.sqlite3*
+# New backend local state and development artifacts
+/data/
+backend/data/
+backend/.env
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.mypy_cache/
+backend/*.egg-info/
+
+# Generated Python package metadata
+**/*.egg-info/
+# Local integration credentials and runtime state
+integrations/**/.env
+integrations/**/node_modules/
+integrations/**/dist/
+# Vendored icon archive is not required at runtime
+web/vendor/
 

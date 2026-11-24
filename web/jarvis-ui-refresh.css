@@ -1,0 +1,40 @@
+/* JARVIS UI/UX refresh — cinematic galaxy + full-spectrum neural core */
+:root{color-scheme:dark}
+html,body{width:100%;height:100%;min-height:100%;margin:0;overflow:hidden!important;background:#02030a!important}
+#galaxyBackground{position:fixed!important;inset:0!important;z-index:0!important;width:100vw!important;height:100vh!important;object-fit:cover!important;object-position:center!important;opacity:.82!important;filter:brightness(.48) saturate(1.35) contrast(1.08)!important;pointer-events:none!important}
+.backdrop{position:fixed!important;inset:0!important;z-index:1!important;background:linear-gradient(180deg,rgba(1,3,10,.12),rgba(1,3,10,.24))!important;pointer-events:none!important}
+.backdrop .blur,.backdrop .stars,.backdrop .scanlines{display:none!important}
+.app-shell{position:relative!important;z-index:2!important;width:100vw!important;height:100dvh!important;min-height:0!important;max-width:none!important;margin:0!important;padding:0!important}
+.topbar,footer,.stage-kicker,.stage h1,.stage>p,.core-hud,.core-ring-label,.orb-caption,.voice-hint,.conversation,.computer-panel,.settings-panel{display:none!important}
+main{display:block!important;width:100vw!important;height:100dvh!important;min-height:0!important;margin:0!important;padding:0!important}
+.stage{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;min-height:0!important;margin:0!important;padding:0!important;display:block!important;background:transparent!important;overflow:hidden!important}
+.orb-zone{position:absolute!important;inset:0!important;width:100vw!important;height:100dvh!important;margin:0!important;padding:0!important;display:grid!important;place-items:center!important;overflow:visible!important;isolation:isolate!important}
+.orb{position:absolute!important;left:50%!important;top:50%!important;z-index:5!important;transform:translate(-50%,-50%) scale(1)!important;width:min(66vmin, min(78vw, 78vh), 760px)!important;height:min(66vmin, min(78vw, 78vh), 760px)!important;max-width:760px!important;max-height:760px!important;margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;filter:none!important;cursor:pointer!important;animation:jarvisRainbow 24s linear infinite!important}
+.orb canvas{display:block!important;width:100%!important;height:100%!important;filter:drop-shadow(0 0 24px rgba(90,180,255,.55)) drop-shadow(0 0 75px rgba(120,70,255,.28))!important;animation:jarvisSpectrum 18s linear infinite!important}
+.orb-scan{position:absolute!important;inset:2%!important;border:1px solid rgba(190,225,255,.2)!important;border-radius:50%!important;pointer-events:none!important}
+.orb-halo{position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;border-radius:50%!important;border:1px solid rgba(160,210,255,.18)!important;pointer-events:none!important}
+.halo-one{width:min(74vmin,86vw,850px)!important;height:min(74vmin,86vw,850px)!important;border-left-color:rgba(255,130,210,.6)!important;animation:jarvisRingA 28s linear infinite!important}
+.halo-two{width:min(82vmin,94vw,940px)!important;height:min(82vmin,94vw,940px)!important;border-color:rgba(90,210,255,.28)!important;animation:jarvisRingB 38s linear infinite reverse!important}
+.halo-three{width:min(90vmin,102vw,1040px)!important;height:min(90vmin,102vw,1040px)!important;border-style:dashed!important;border-color:rgba(180,120,255,.22)!important;animation:jarvisRingA 65s linear infinite!important}
+.orb.listening{animation:jarvisListen 1.5s ease-in-out infinite,jarvisRainbow 24s linear infinite!important}
+.orb.speaking{animation:jarvisSpeak .55s ease-in-out infinite alternate,jarvisRainbow 24s linear infinite!important}
+.orb.thinking{animation:jarvisThink 2.4s ease-in-out infinite,jarvisRainbow 24s linear infinite!important}
+@keyframes jarvisSpectrum{0%{filter:hue-rotate(0deg) saturate(1.35) drop-shadow(0 0 26px rgba(80,180,255,.55))}25%{filter:hue-rotate(90deg) saturate(1.55) drop-shadow(0 0 28px rgba(255,80,190,.5))}50%{filter:hue-rotate(180deg) saturate(1.5) drop-shadow(0 0 28px rgba(80,255,170,.5))}75%{filter:hue-rotate(270deg) saturate(1.6) drop-shadow(0 0 28px rgba(255,190,70,.5))}100%{filter:hue-rotate(360deg) saturate(1.35) drop-shadow(0 0 26px rgba(80,180,255,.55))}}
+@keyframes jarvisRainbow{to{filter:hue-rotate(360deg)}}
+@keyframes jarvisRingA{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes jarvisRingB{to{transform:translate(-50%,-50%) rotateX(68deg) rotate(360deg)}}
+@keyframes jarvisListen{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.045)}}
+@keyframes jarvisSpeak{to{transform:translate(-50%,-50%) scale(1.075)}}
+@keyframes jarvisThink{0%,100%{transform:translate(-50%,-50%) scale(.99)}50%{transform:translate(-50%,-50%) scale(1.025)}}
+@media(max-width:700px){.orb{width:min(78vw,70vh,560px)!important;height:min(78vw,70vh,560px)!important}.halo-one{width:88vw!important;height:88vw!important}.halo-two{width:98vw!important;height:98vw!important}.halo-three{width:108vw!important;height:108vw!important}}
+@media(prefers-reduced-motion:reduce){#galaxyBackground{display:none!important}.orb,.orb canvas,.orb-halo{animation:none!important}}
+
+
+/* 2026-11-22 orb viewport repair: force a square, fully visible canvas centered in the viewport. */
+html,body,#app,.app-shell,main,.stage,.orb-zone{max-width:none!important;}
+.stage{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;min-height:0!important;overflow:visible!important;}
+.orb-zone{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;display:grid!important;place-items:center!important;overflow:visible!important;margin:0!important;padding:0!important;}
+#mic.orb{position:fixed!important;left:50vw!important;top:50vh!important;top:50dvh!important;right:auto!important;bottom:auto!important;width:min(68vmin,720px)!important;height:min(68vmin,720px)!important;min-width:0!important;min-height:0!important;max-width:720px!important;max-height:720px!important;aspect-ratio:1/1!important;box-sizing:border-box!important;transform:translate(-50%,-50%)!important;transform-origin:center center!important;overflow:visible!important;}
+#neuralCore{position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;aspect-ratio:1/1!important;}
+.orb-halo{position:fixed!important;left:50vw!important;top:50vh!important;top:50dvh!important;transform:translate(-50%,-50%)!important;}
+@media(max-width:700px){#mic.orb{width:min(78vmin,560px)!important;height:min(78vmin,560px)!important;}}

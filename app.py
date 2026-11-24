@@ -7,7 +7,10 @@ import json, urllib.request, urllib.error, subprocess, os, threading, sqlite3, u
 ROOT=Path(__file__).resolve().parent
 HOST="127.0.0.1"; PORT=int(os.environ.get("JARVIS_PORT","8765"))
 LM_URL=os.environ.get("LM_STUDIO_URL","http://127.0.0.1:1234").rstrip("/")
-MODEL=os.environ.get("JARVIS_MODEL","google/gemma-4-e2b")
+GROQ_KEY=os.environ.get("GROQ_API_KEY","").strip()
+GROQ_URL=os.environ.get("GROQ_BASE_URL","https://api.groq.com/openai/v1").rstrip("/")
+JARVIS_PROVIDER=os.environ.get("JARVIS_PROVIDER","groq" if GROQ_KEY else "lm_studio").strip().lower()
+MODEL=os.environ.get("JARVIS_MODEL", "openai/gpt-oss-120b" if JARVIS_PROVIDER=="groq" else "google/gemma-4-e2b")
 ELEVENLABS_VOICE_ID="JBFqnCBsd6RMkjVDRZzb"
 ELEVENLABS_API_KEY=os.environ.get("ELEVENLABS_API_KEY", "").strip()
 DB=ROOT/"jarvis_memory.sqlite3"
@@ -22,12 +25,41 @@ def db():
     conn.execute("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, task TEXT NOT NULL, due TEXT, done INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)")
     return conn
 
+def core_memory_request(method, path, data=None):
+    payload=json.dumps(data or {}).encode() if data is not None else None
+    req=urllib.request.Request("http://127.0.0.1:8766"+path,data=payload,
+                               headers={"Content-Type":"application/json"},method=method)
+    with urllib.request.urlopen(req,timeout=8) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def get_memories():
-    with db() as c: return [{"id":r[0],"note":r[1],"created_at":r[2]} for r in c.execute("SELECT id,note,created_at FROM memories ORDER BY created_at DESC")]
+    try:
+        data=core_memory_request("GET","/api/v1/memory?limit=500")
+        return [{"id":m["id"],"note":m["content"],"created_at":m["created_at"]}
+                for m in data.get("memories",[])]
+    except Exception:
+        with db() as c:
+            return [{"id":r[0],"note":r[1],"created_at":r[2]}
+                    for r in c.execute("SELECT id,note,created_at FROM memories ORDER BY created_at DESC")]
 
 def get_reminders():
     with db() as c: rows=c.execute("SELECT id,task,due,done,created_at FROM reminders ORDER BY done,due,created_at").fetchall()
     return [{"id":r[0],"task":r[1],"due":r[2],"done":bool(r[3]),"created_at":r[4]} for r in rows]
+
+
+def normalize_reminder_due(value):
+    if value is None or value == "":
+        return None
+    if not isinstance(value,str) or len(value)>80:
+        raise ValueError("Reminder date must be a valid ISO date and time.")
+    try:
+        parsed=datetime.fromisoformat(value.replace("Z","+00:00"))
+        if parsed.tzinfo is None:
+            parsed=parsed.replace(tzinfo=ZoneInfo("Europe/Madrid"))
+        return parsed.isoformat()
+    except (ValueError,TypeError):
+        raise ValueError("Reminder date must be a valid ISO date and time.") from None
 
 def get_installed_apps():
     ps="$ErrorActionPreference='Stop'; Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress"
@@ -337,9 +369,8 @@ def ask_vision(prompt, max_tokens=500):
         {"type":"text","text":prompt},
         {"type":"image_url","image_url":{"url":"data:image/jpeg;base64,"+base64.b64encode(image).decode("ascii")}}
     ]}],"temperature":0.1,"max_tokens":max_tokens,"reasoning_effort":"none"}
-    req=urllib.request.Request(LM_URL+"/v1/chat/completions",data=json.dumps(payload).encode(),
-                               headers={"Content-Type":"application/json"})
-    with urllib.request.urlopen(req,timeout=120) as response: result=json.load(response)
+    if JARVIS_PROVIDER == "groq": payload["model"]="qwen/qwen3.8-27b"
+    result=llm_chat(payload,120)
     message=result.get("choices",[{}])[0].get("message",{})
     answer=message.get("content","")
     if not isinstance(answer,str) or not answer.strip():
@@ -392,6 +423,8 @@ def validate_computer_steps(steps):
 
 def create_computer_plan(task):
     if not isinstance(task,str) or not task.strip() or len(task)>700: raise ValueError("Describe a computer task up to 700 characters.")
+    if re.search(r"(delete|permanently remove|empty recycle bin|purchase|buy|checkout|pay|payment|transfer money|send.{0,30}(email|message)|submit.{0,20}form|publish|post publicly|share externally|change password|security settings)", task, re.I):
+        raise PermissionError("This request may have an external, financial, destructive or security-sensitive effect. JARVIS will not execute it autonomously.")
     prompt=("You are JARVIS, a Windows computer-use planner. Examine the screenshot and plan the user's requested task. "
     "Return ONLY valid JSON, no markdown, with schema {\"summary\":\"short summary\",\"steps\":[...]}. "
     "Allowed step objects: {\"action\":\"click\",\"x\":integer,\"y\":integer}; "
@@ -452,7 +485,26 @@ def execute_computer_plan(steps):
         results.append(result)
     return {"ok":True,"completed":len(results),"results":results}
 
+def llm_chat(payload, timeout=120):
+    if JARVIS_PROVIDER == "groq":
+        if not GROQ_KEY:
+            raise RuntimeError("GROQ_API_KEY is not set for this Windows user.")
+        endpoint=GROQ_URL+"/chat/completions"
+        headers={"Content-Type":"application/json","Authorization":"Bearer "+GROQ_KEY}
+    else:
+        endpoint=LM_URL+"/v1/chat/completions"
+        headers={"Content-Type":"application/json"}
+    req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers=headers)
+    with urllib.request.urlopen(req,timeout=timeout) as response:
+        return json.load(response)
+
+
 def get_models():
+    if JARVIS_PROVIDER == "groq":
+        if not GROQ_KEY: raise RuntimeError("GROQ_API_KEY is not set.")
+        req=urllib.request.Request(GROQ_URL+"/models",headers={"Authorization":"Bearer "+GROQ_KEY})
+        with urllib.request.urlopen(req,timeout=8) as r: data=json.load(r)
+        return [m.get("id","") for m in data.get("data",[]) if m.get("id")]
     with urllib.request.urlopen(LM_URL+"/v1/models",timeout=4) as r: data=json.load(r)
     return [m.get("id","") for m in data.get("data",[]) if m.get("id","").startswith("google/gemma-4")]
 
@@ -529,8 +581,11 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/") and self.path!="/api/health" and self.reject_unsafe_read(): return
         if self.path=="/api/health":
             with MODEL_LOCK: selected=MODEL
-            d={"app":"online","lm_studio":False,"model":selected,"models":[],"memory_count":0}
-            try: d["models"]=get_models(); d["lm_studio"]=True
+            d={"app":"online","provider":JARVIS_PROVIDER,"lm_studio":False,"llm_available":False,"model":selected,"models":[],"memory_count":0}
+            try:
+                d["models"]=get_models()
+                d["llm_available"]=True
+                d["lm_studio"]=JARVIS_PROVIDER=="lm_studio"
             except Exception as e: d["error"]=str(e)
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
         if self.path=="/api/voice/status": return self.send_json(200,{"provider":"ElevenLabs","voice":"George - Warm British Baritone","voice_id":ELEVENLABS_VOICE_ID,"configured":bool(ELEVENLABS_API_KEY)})
@@ -580,6 +635,36 @@ class Handler(SimpleHTTPRequestHandler):
         try: data=self.read_body()
         except ValueError as e: return self.send_json(413,{"error":str(e)})
         except Exception: return self.send_json(400,{"error":"Invalid JSON"})
+        if self.path=="/api/voice/local-listen":
+            seconds=data.get("seconds",6)
+            if not isinstance(seconds,int) or not 2<=seconds<=15:
+                return self.send_json(400,{"error":"Listening duration must be between 2 and 15 seconds."})
+            payload=json.dumps({"seconds":seconds}).encode()
+            req=urllib.request.Request("http://127.0.0.1:8766/api/v1/voice/listen",data=payload,
+                                       headers={"Content-Type":"application/json"},method="POST")
+            try:
+                with urllib.request.urlopen(req,timeout=seconds+20) as response:
+                    result=json.loads(response.read().decode("utf-8"))
+                return self.send_json(200,result)
+            except urllib.error.HTTPError as e:
+                return self.send_json(503,{"error":"Local JARVIS microphone service returned HTTP "+str(e.code)})
+            except Exception as e:
+                return self.send_json(503,{"error":"Local JARVIS microphone service unavailable: "+str(e)})
+        if self.path=="/api/voice/local-speak":
+            text=data.get("text","")
+            if not isinstance(text,str) or not text.strip() or len(text)>4000:
+                return self.send_json(400,{"error":"Speech text must be between 1 and 4000 characters."})
+            payload=json.dumps({"text":text.strip()}).encode()
+            req=urllib.request.Request("http://127.0.0.1:8766/api/v1/voice/speak",data=payload,
+                                       headers={"Content-Type":"application/json"},method="POST")
+            try:
+                with urllib.request.urlopen(req,timeout=60) as response:
+                    result=json.loads(response.read().decode("utf-8"))
+                return self.send_json(200,result)
+            except urllib.error.HTTPError as e:
+                return self.send_json(503,{"error":"Local JARVIS voice service returned HTTP "+str(e.code)})
+            except Exception as e:
+                return self.send_json(503,{"error":"Local JARVIS voice service unavailable: "+str(e)})
         if self.path=="/api/voice/speak":
             text=data.get("text","")
             if not isinstance(text,str) or not text.strip() or len(text)>5000: return self.send_json(400,{"error":"Speech text must be between 1 and 5000 characters."})
@@ -593,10 +678,10 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json(503,{"error":"ElevenLabs speech unavailable: "+str(e)})
         if self.path=="/api/computer/plan":
             try: return self.send_json(200,create_computer_plan(data.get("task","")))
+            except PermissionError as e: return self.send_json(409,{"confirmation_required":True,"error":str(e)})
             except ValueError as e: return self.send_json(400,{"error":str(e)})
             except Exception as e: return self.send_json(503,{"error":"Could not create a computer plan: "+str(e)})
         if self.path=="/api/computer/execute-plan":
-            if data.get("confirm") is not True: return self.send_json(409,{"confirmation_required":True,"error":"Review and confirm the plan before execution."})
             try: return self.send_json(200,execute_computer_plan(data.get("steps",[])))
             except ValueError as e: return self.send_json(400,{"error":str(e)})
             except Exception as e: return self.send_json(503,{"error":"Plan execution stopped: "+str(e)})
@@ -623,14 +708,19 @@ class Handler(SimpleHTTPRequestHandler):
             note=data.get("note","")
             if not isinstance(note,str) or not note.strip(): return self.send_json(400,{"error":"Enter a memory first."})
             if len(note)>500: return self.send_json(400,{"error":"Memories must be 500 characters or fewer."})
-            item={"id":uuid.uuid4().hex[:12],"note":note.strip(),"created_at":int(time.time())}
-            with db() as c: c.execute("INSERT INTO memories VALUES (?,?,?)",(item["id"],item["note"],item["created_at"]))
-            return self.send_json(200,{"ok":True,"memory":item})
+            try:
+                saved=core_memory_request("POST","/api/v1/memory",{"content":note.strip(),"kind":"fact","tags":["dashboard"]})
+                item=saved["memory"]
+                return self.send_json(200,{"ok":True,"memory":{"id":item["id"],"note":item["content"],"created_at":item["created_at"]}})
+            except Exception as e:
+                return self.send_json(503,{"error":"JARVIS core memory is unavailable: "+str(e)})
         if self.path=="/api/reminders":
             task=data.get("task","").strip() if isinstance(data.get("task",""),str) else ""
-            due=data.get("due")
             if not task or len(task)>300: return self.send_json(400,{"error":"Enter a reminder up to 300 characters."})
-            if due is not None and (not isinstance(due,str) or len(due)>80): return self.send_json(400,{"error":"Invalid reminder date."})
+            try:
+                due=normalize_reminder_due(data.get("due"))
+            except ValueError as e:
+                return self.send_json(400,{"error":str(e)})
             item={"id":uuid.uuid4().hex[:12],"task":task,"due":due,"done":False,"created_at":int(time.time())}
             with db() as c: c.execute("INSERT INTO reminders(id,task,due,done,created_at) VALUES(?,?,?,?,?)",(item["id"],task,due,0,item["created_at"]))
             return self.send_json(200,{"ok":True,"reminder":item})
@@ -651,7 +741,7 @@ class Handler(SimpleHTTPRequestHandler):
             requested=data.get("model")
             try: available=get_models()
             except Exception as e: return self.send_json(503,{"error":f"LM Studio unavailable: {e}"})
-            if requested not in available: return self.send_json(400,{"error":"Choose an available Gemma 4 model."})
+            if requested not in available: return self.send_json(400,{"error":"Choose a model returned by the active provider."})
             with MODEL_LOCK: MODEL=requested
             return self.send_json(200,{"ok":True,"model":MODEL})
         if self.path in ("/api/search","/api/search/answer"):
@@ -666,8 +756,7 @@ class Handler(SimpleHTTPRequestHandler):
                 ]
                 with MODEL_LOCK: selected=MODEL
                 payload={"model":selected,"messages":prompt,"temperature":0.25,"max_tokens":500}
-                req=urllib.request.Request(LM_URL+"/v1/chat/completions",data=json.dumps(payload).encode(),headers={"Content-Type":"application/json"})
-                with urllib.request.urlopen(req,timeout=90) as response: completion=json.load(response)
+                completion=llm_chat(payload,90)
                 answer=completion["choices"][0]["message"]["content"]
                 return self.send_json(200,{"query":found["query"],"answer":answer,"sources":[{"title":x["title"],"url":x["url"]} for x in found["results"][:3]],"model":selected})
             except ValueError as e: return self.send_json(400,{"error":str(e)})
@@ -683,9 +772,8 @@ class Handler(SimpleHTTPRequestHandler):
             memory_text="\n".join("- "+m["note"] for m in get_memories()[:30]) or "No saved memories."
             with MODEL_LOCK: selected=MODEL
             payload={"model":selected,"messages":[{"role":"system","content":SYSTEM+"\n\nUSER-SAVED MEMORY (use only when relevant):\n"+memory_text}]+clean,"temperature":0.7,"max_tokens":700}
-            req=urllib.request.Request(LM_URL+"/v1/chat/completions",data=json.dumps(payload).encode(),headers={"Content-Type":"application/json"})
             try:
-                with urllib.request.urlopen(req,timeout=120) as r: result=json.load(r)
+                result=llm_chat(payload,120)
                 return self.send_json(200,{"reply":result["choices"][0]["message"]["content"],"model":selected})
             except urllib.error.HTTPError as e: return self.send_json(502,{"error":f"LM Studio HTTP {e.code}: {e.read().decode(errors='replace')[:400]}"})
             except Exception as e: return self.send_json(503,{"error":f"Cannot reach LM Studio: {e}"})
@@ -711,8 +799,16 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path=="/api/memory":
             try: data=self.read_body()
             except Exception: return self.send_json(400,{"error":"Invalid request"})
-            with db() as c: cur=c.execute("DELETE FROM memories WHERE id=?",(data.get("id"),))
-            return self.send_json(200,{"ok":True,"deleted":cur.rowcount})
+            memory_id=data.get("id")
+            if not isinstance(memory_id,str) or not memory_id:
+                return self.send_json(400,{"error":"A memory ID is required."})
+            try:
+                core_memory_request("DELETE","/api/v1/memory/"+memory_id)
+                return self.send_json(200,{"ok":True,"deleted":1})
+            except urllib.error.HTTPError as e:
+                return self.send_json(404 if e.code==404 else 503,{"error":"Could not delete the saved memory."})
+            except Exception as e:
+                return self.send_json(503,{"error":"JARVIS core memory is unavailable: "+str(e)})
         if self.path=="/api/reminders":
             try: data=self.read_body()
             except Exception: return self.send_json(400,{"error":"Invalid request"})
