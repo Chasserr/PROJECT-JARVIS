@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import wave
 from pathlib import Path
 from typing import Any, cast
@@ -59,6 +60,8 @@ Add-Type -AssemblyName System.Speech
             devices.append({"index": index, "name": item["name"], "kind": "output",
                             "host_api": host_api, "channels": item["max_output_channels"],
                             "selected": True})
+    if PIPER_MODEL_PATH.is_file():
+        voices.append(PIPER_VOICE_NAME)
     return {
         "voices": voices,
         "recognition_languages": [
@@ -76,53 +79,129 @@ Add-Type -AssemblyName System.Speech
 
 ELEVENLABS_VOICE_ID = "DODLEQrClDo8wCz460ld"
 ELEVENLABS_VOICE_NAME = "Lauren B - Friendly & Comforting"
+PIPER_VOICE_NAME = "Piper Amy - Local Female Voice"
+PIPER_MODEL_PATH = Path(__file__).resolve().parents[4] / "data" / "voices" / "en_US-amy-medium.onnx"
 
 
 def _speak_elevenlabs(text: str, output_index: int, output_device: dict[str, Any]) -> dict[str, Any]:
     api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("ELEVENLABS_API_KEY is not configured.")
-    response = httpx.post(
-        f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}",
-        params={"output_format": "mp3_44100_128"},
-        headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-        json={
-            "text": text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {"stability": 0.55, "similarity_boost": 0.78,
-                               "style": 0.2, "use_speaker_boost": True},
-        },
-        timeout=httpx.Timeout(45.0, connect=10.0),
-    )
-    if response.is_error:
-        detail = response.text[:500]
-        raise RuntimeError(f"ElevenLabs speech request failed ({response.status_code}): {detail}")
-    audio = response.content
-    if not audio:
-        raise RuntimeError("ElevenLabs returned an empty audio response.")
     ffmpeg = shutil.which("ffmpeg") or str(Path.home() / ".raea" / "bin" / "ffmpeg.exe")
-    converted = subprocess.run(
-        [ffmpeg, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
-         "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1", "pipe:1"],
-        input=audio, capture_output=True, timeout=30, check=False,
-    )
-    if converted.returncode or not converted.stdout:
-        raise RuntimeError("Could not decode the ElevenLabs audio for the Echo Dot.")
-    with sd.RawOutputStream(device=output_index, samplerate=44100, channels=1,
-                            dtype="int16") as output:
-        output.write(converted.stdout)
-    return {"spoken": True, "characters": len(text), "voice": ELEVENLABS_VOICE_NAME,
-            "provider": "ElevenLabs",
+    if not Path(ffmpeg).is_file():
+        raise RuntimeError("FFmpeg is required for streaming ElevenLabs playback.")
+    command = [
+        ffmpeg, "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
+        "-f", "s16le", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "1", "pipe:1",
+    ]
+    decoder = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, bufsize=0)
+    playback_error: list[BaseException] = []
+
+    def play_decoded_audio() -> None:
+        assert decoder.stdout is not None
+        try:
+            with sd.RawOutputStream(device=output_index, samplerate=44100, channels=1,
+                                    dtype="int16") as output:
+                while True:
+                    chunk = decoder.stdout.read(8192)
+                    if not chunk:
+                        break
+                    output.write(chunk)
+        except Exception as exc:  # noqa: BLE001
+            playback_error.append(exc)
+            with suppress(Exception):
+                decoder.kill()
+
+    from contextlib import suppress
+    reader = threading.Thread(target=play_decoded_audio, name="jarvis-tts-playback", daemon=True)
+    reader.start()
+    try:
+        with httpx.stream(
+            "POST", f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream",
+            params={"output_format": "mp3_44100_128"},
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "text": text,
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {"stability": 0.55, "similarity_boost": 0.78,
+                                   "style": 0.2, "use_speaker_boost": True},
+            },
+            timeout=httpx.Timeout(60.0, connect=10.0),
+        ) as response:
+            if response.is_error:
+                detail = response.read().decode("utf-8", errors="replace")[:500]
+                raise RuntimeError(
+                    f"ElevenLabs streaming request failed ({response.status_code}): {detail}"
+                )
+            assert decoder.stdin is not None
+            received = 0
+            for chunk in response.iter_bytes(4096):
+                if chunk:
+                    decoder.stdin.write(chunk)
+                    received += len(chunk)
+            decoder.stdin.close()
+        reader.join(timeout=60)
+        return_code = decoder.wait(timeout=5)
+        if playback_error:
+            raise RuntimeError(f"Audio playback failed: {playback_error[0]}")
+        if received == 0 or return_code != 0:
+            stderr = decoder.stderr.read().decode("utf-8", errors="replace") if decoder.stderr else ""
+            raise RuntimeError(f"Could not decode streaming ElevenLabs audio: {stderr[-500:]}")
+    except BaseException:
+        with suppress(Exception):
+            decoder.kill()
+        raise
+    finally:
+        if reader.is_alive():
+            reader.join(timeout=2)
+        with suppress(Exception):
+            decoder.stdout.close() if decoder.stdout else None
+        with suppress(Exception):
+            decoder.stderr.close() if decoder.stderr else None
+    return {"spoken": True, "streaming": True, "characters": len(text),
+            "voice": ELEVENLABS_VOICE_NAME, "provider": "ElevenLabs",
             "output_device": {"index": output_index, "name": output_device["name"]}}
 
 
-def speak(text: str, voice_name: str = "Microsoft Zira Desktop - English (United States)") -> dict[str, Any]:
+def _speak_piper(text: str, output_index: int, output_device: dict[str, Any]) -> dict[str, Any]:
+    if not PIPER_MODEL_PATH.is_file():
+        raise RuntimeError(f"Local Piper voice model is missing: {PIPER_MODEL_PATH}")
+    from piper import PiperVoice
+
+    voice = PiperVoice.load(PIPER_MODEL_PATH)
+    chunks = iter(voice.synthesize(text))
+    first = next(chunks, None)
+    if first is None:
+        raise RuntimeError("Piper returned no speech audio.")
+    with sd.RawOutputStream(
+        device=output_index, samplerate=first.sample_rate,
+        channels=first.sample_channels, dtype="int16",
+    ) as output:
+        output.write(first.audio_int16_bytes)
+        for chunk in chunks:
+            output.write(chunk.audio_int16_bytes)
+    return {
+        "spoken": True, "streaming": True, "characters": len(text),
+        "voice": PIPER_VOICE_NAME, "provider": "Piper (local)",
+        "output_device": {"index": output_index, "name": output_device["name"]},
+    }
+
+
+def speak(text: str, voice_name: str = PIPER_VOICE_NAME) -> dict[str, Any]:
     value = text.strip()
     if not value or len(value) > 4000:
         raise ValueError("Speech text must contain 1-4000 characters.")
     output_index, output_device = _audio_device(None, "output")
     if voice_name == ELEVENLABS_VOICE_NAME:
-        return _speak_elevenlabs(value, output_index, output_device)
+        try:
+            return _speak_elevenlabs(value, output_index, output_device)
+        except (RuntimeError, httpx.HTTPError) as exc:
+            local_result = _speak_piper(value, output_index, output_device)
+            local_result["fallback_reason"] = str(exc)[:300]
+            return local_result
+    if voice_name == PIPER_VOICE_NAME:
+        return _speak_piper(value, output_index, output_device)
     pythoncom.CoInitialize()
     audio_path: Path | None = None
     try:

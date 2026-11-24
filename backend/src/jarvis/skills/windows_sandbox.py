@@ -180,14 +180,19 @@ def run_restricted_worker(
         startup.dwFlags = 0x00000100  # STARTF_USESTDHANDLES
         startup.hStdInput, startup.hStdOutput, startup.hStdError = child_in, child_out, child_out
         worker = Path(__file__).with_name("sandbox_worker.py")
+        # A venv executable can be a Windows launcher shim which fails under a
+        # restricted token. Launch the concrete base interpreter instead.
+        worker_python = str(Path(sys.base_prefix) / "python.exe")
+        if not Path(worker_python).is_file():
+            worker_python = sys.executable
         command = ctypes.create_unicode_buffer(
-            subprocess.list2cmdline([sys.executable, "-I", str(worker)])
+            subprocess.list2cmdline([worker_python, "-I", str(worker)])
         )
         info = PROCESS_INFORMATION()
         flags = 0x00000004 | 0x08000000  # CREATE_SUSPENDED | CREATE_NO_WINDOW
         if not create_process(
             token_handle,
-            sys.executable,
+            worker_python,
             command,
             None,
             None,

@@ -221,3 +221,101 @@ def press_key(key: str) -> dict[str, Any]:
         page = _get_page()
         page.keyboard.press(key)
         return {"pressed": key, "url": page.url, "title": page.title()}
+
+
+def _whatsapp_page() -> Page:
+    page = _get_page()
+    if "web.whatsapp.com" not in page.url:
+        raise RuntimeError("WhatsApp Web is not the active JARVIS browser page. Open https://web.whatsapp.com first.")
+    if "/login" in page.url or page.get_by_text("Scan to log in", exact=False).count():
+        raise RuntimeError("WhatsApp is not linked yet. Scan the QR code with your phone, then try again.")
+    return page
+
+
+def whatsapp_status() -> dict[str, Any]:
+    with _lock:
+        page = _get_page()
+        if "web.whatsapp.com" not in page.url:
+            return {"connected": False, "reason": "WhatsApp Web is not open in the managed browser."}
+        body = page.locator("body").inner_text(timeout=10000)
+        logged_in = "/login" not in page.url and "Scan to log in" not in body and (
+            page.locator("[aria-label='Chat list']").count() > 0 or
+            page.locator("#side").count() > 0
+        )
+        return {"connected": bool(logged_in), "url": page.url,
+                "reason": "WhatsApp Web is linked." if logged_in else "QR linking is required."}
+
+
+def whatsapp_list_chats(limit: int = 20) -> dict[str, Any]:
+    if not 1 <= limit <= 50:
+        raise ValueError("limit must be between 1 and 50")
+    with _lock:
+        page = _whatsapp_page()
+        side = page.locator("#side")
+        if side.count() == 0:
+            side = page.locator("[aria-label='Chat list']")
+        if side.count() == 0:
+            raise RuntimeError("WhatsApp chat list was not found; the page layout may have changed.")
+        rows = side.locator("[role='listitem']")
+        items = []
+        for index in range(min(rows.count(), limit)):
+            row = rows.nth(index)
+            label = (row.get_attribute("aria-label") or row.inner_text(timeout=3000)).strip()
+            if label:
+                items.append(label[:500])
+        return {"connected": True, "chats": items, "count": len(items),
+                "note": "Only visible chat-list labels are returned."}
+
+
+def whatsapp_read_chat(contact: str, limit: int = 20) -> dict[str, Any]:
+    target = contact.strip()
+    if not target or len(target) > 120:
+        raise ValueError("Contact name must contain 1-120 characters.")
+    if not 1 <= limit <= 50:
+        raise ValueError("limit must be between 1 and 50")
+    with _lock:
+        page = _whatsapp_page()
+        side = page.locator("#side")
+        if side.count() == 0:
+            side = page.locator("[aria-label='Chat list']")
+        matches = side.get_by_text(target, exact=True)
+        if matches.count() != 1:
+            raise ValueError("Contact must match exactly one visible chat. Use the chat list to confirm the exact name.")
+        matches.click(timeout=5000)
+        page.wait_for_timeout(500)
+        bubbles = page.locator("#main .message-in, #main .message-out")
+        messages = []
+        for index in range(max(0, bubbles.count() - limit), bubbles.count()):
+            bubble = bubbles.nth(index)
+            text = bubble.inner_text(timeout=3000).strip()
+            if text:
+                messages.append({"direction": "outgoing" if "message-out" in (bubble.get_attribute("class") or "") else "incoming",
+                                 "text": text[:2000]})
+        return {"contact": target, "messages": messages, "count": len(messages),
+                "note": "Only the most recent visible text messages are returned; media and deleted messages are not interpreted."}
+
+
+def whatsapp_send_message(contact: str, message: str) -> dict[str, Any]:
+    target = contact.strip()
+    if not target or len(target) > 120 or not message.strip() or len(message) > 2000:
+        raise ValueError("Provide an exact contact name and a message of 1-2000 characters.")
+    with _lock:
+        page = _whatsapp_page()
+        side = page.locator("#side")
+        if side.count() == 0:
+            side = page.locator("[aria-label='Chat list']")
+        matches = side.get_by_text(target, exact=True)
+        if matches.count() != 1:
+            raise ValueError("Contact must match exactly one visible chat. No message was sent.")
+        matches.click(timeout=5000)
+        page.wait_for_timeout(400)
+        composer = page.locator("#main footer div[contenteditable='true']")
+        if composer.count() != 1:
+            raise RuntimeError("Could not identify exactly one message composer. No message was sent.")
+        composer.fill(message, timeout=5000)
+        send_button = page.locator("#main footer [aria-label='Send']")
+        if send_button.count() != 1:
+            composer.fill("")
+            raise RuntimeError("Send button was not uniquely identified; draft cleared and no message was sent.")
+        send_button.click(timeout=5000)
+        return {"sent": True, "contact": target, "characters": len(message)}

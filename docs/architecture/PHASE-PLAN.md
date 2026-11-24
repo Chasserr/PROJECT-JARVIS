@@ -30,19 +30,24 @@
 - [ ] Expand adversarial coverage across every skill, redirect chains, browser content and cross-task memory poisoning.
 - [x] Bounded planner, tool and critic execution timeouts; tool concurrency is capped and automatic tool retries are disabled to prevent duplicate side effects after ambiguous failures.
 - [x] Cross-skill security matrix verifies every manifest skill, sensitive-action approvals, high-impact policy defaults, kill-switch denial and rejection of runtime-code manifest fields.
+- [x] Added a read-only local Windows security-posture audit and an approval-gated Microsoft Defender quick-scan skill; reports are persisted under data/pc-security.
+- [x] Fixed restricted-worker startup from the project virtual environment by launching the concrete base Python interpreter; Windows worker regression tests pass.
+- [ ] Full OS sandbox remains incomplete: the restricted-token/low-integrity Job Object worker is not a filesystem/network isolation boundary. Windows Sandbox is unavailable on this Windows 10 Home host; AppContainer isolation needs a separately verified implementation.
 
 ## Phase 3 — Voice and browser workflows
 - [x] Initial local Windows SAPI speech output and user-initiated bounded speech recognition.
 - [x] Windows voice and installed speech-recognition language discovery; bounded dictation can select an installed culture and rejects unavailable languages, exposed through the core voice-options API.
 - [x] Dedicated Playwright browser with navigation, tabs, snapshots, safe keyboard allowlist, non-sensitive form inspection/filling and protected actions.
-- [ ] openWakeWord, Whisper STT and streaming TTS provider adapters.
+- [x] openWakeWord "Hey Jarvis" wake model and faster-whisper local multilingual STT are installed; the wake runtime loaded successfully and entered listening state on the Fifine microphone.
+- [x] Streaming TTS: Piper Amy local female voice streams audio chunks to the Echo Dot; ElevenLabs streaming is retained as an optional provider with local fallback.
+- [ ] Partial/word-by-word streaming STT and interruption of in-progress speech still need implementation and real conversation testing.
+- [ ] Measure English transcription quality and evaluate Twi support; no Twi quality claim is made.
 - [x] Per-task cancellation API and cooperative stop between agent actions; an already-running tool is allowed to finish safely, while pending protected approvals can be cancelled without execution.
 - [x] Windows audio endpoint discovery exposed through voice.options, including selectable PortAudio device indices.
 - [x] Fifine microphone selected as JARVIS's only exposed microphone; Iriun and Camo are hidden from JARVIS (Windows drivers/apps remain installed).
 - [x] Echo Dot selected for JARVIS speech output through per-device audio playback.
 - [x] Voice playback interruption via POST /api/v1/voice/stop and the autonomous voice.stop skill; endpoint verified against the live core API.
 - [x] User-facing language settings API with persisted recognition-language preference, installed-language validation and audit event; verified live with en-US.
-- [ ] English baseline; evaluate Twi support with measured model quality before claiming support.
 
 ## Phase 4 — Dashboard
 - [ ] Next.js + TypeScript + Tailwind HUD.

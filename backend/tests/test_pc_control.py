@@ -35,3 +35,20 @@ def test_screen_click_rejects_out_of_bounds(monkeypatch):
 def test_text_entry_length_is_bounded():
     with pytest.raises(ValueError, match="between 1 and 2000"):
         pc_control.type_desktop_text("x" * 2001)
+
+
+def test_desktop_key_shortcut_allowlist(monkeypatch):
+    import sys
+    calls = []
+    class FakePyAutoGUI:
+        FAILSAFE = True
+        @staticmethod
+        def hotkey(*keys): calls.append(keys)
+        @staticmethod
+        def press(key): calls.append((key,))
+    monkeypatch.setattr(pc_control.os, "name", "nt")
+    monkeypatch.setitem(sys.modules, "pyautogui", FakePyAutoGUI)
+    assert pc_control.press_desktop_key("ctrl+s")["pressed"] == "ctrl+s"
+    assert calls == [("ctrl", "s")]
+    with pytest.raises(ValueError, match="safe desktop allowlist"):
+        pc_control.press_desktop_key("ctrl+alt+delete")

@@ -322,3 +322,73 @@ def type_desktop_text(text: str) -> dict[str, Any]:
     pyautogui.FAILSAFE = True
     pyautogui.write(text, interval=0.01)
     return {"typed": True, "characters": len(text)}
+
+
+def read_user_text_file(path: str, max_bytes: int = 1_000_000) -> dict[str, Any]:
+    target = _safe_user_path(path)
+    if not target.is_file():
+        raise FileNotFoundError(f"File not found: {target}")
+    if target.stat().st_size > max_bytes:
+        raise ValueError(f"File exceeds the {max_bytes}-byte read limit.")
+    data = target.read_bytes()
+    try:
+        content = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValueError("This file is not UTF-8 text; binary and unsupported files are not read by this skill.") from exc
+    return {"path": str(target), "content": content, "bytes": len(data)}
+
+
+def create_user_text_file(path: str, content: str) -> dict[str, Any]:
+    target = _safe_user_path(path)
+    if not target.parent.exists() or not target.parent.is_dir():
+        raise FileNotFoundError(f"Parent folder not found: {target.parent}")
+    if target.exists():
+        raise FileExistsError(f"Refusing to overwrite existing file: {target}")
+    if len(content) > 200_000:
+        raise ValueError("New text file content cannot exceed 200,000 characters.")
+    target.write_text(content, encoding="utf-8")
+    return {"created": True, "path": str(target), "characters": len(content)}
+
+
+def copy_user_file(source: str, destination: str) -> dict[str, Any]:
+    src = _safe_user_path(source)
+    dst = _safe_user_path(destination)
+    if not src.exists() or not src.is_file():
+        raise FileNotFoundError(f"Source file not found: {src}")
+    if not dst.parent.exists() or not dst.parent.is_dir():
+        raise FileNotFoundError(f"Destination folder not found: {dst.parent}")
+    if dst.exists():
+        raise FileExistsError(f"Destination already exists; refusing to overwrite: {dst}")
+    shutil.copy2(str(src), str(dst))
+    return {"copied": True, "source": str(src), "destination": str(dst)}
+
+
+def create_user_directory(path: str) -> dict[str, Any]:
+    target = _safe_user_path(path)
+    if target.exists():
+        raise FileExistsError(f"Path already exists: {target}")
+    if not target.parent.exists() or not target.parent.is_dir():
+        raise FileNotFoundError(f"Parent folder not found: {target.parent}")
+    target.mkdir()
+    return {"created": True, "path": str(target)}
+
+
+def press_desktop_key(key: str) -> dict[str, Any]:
+    allowed = {"enter", "tab", "esc", "escape", "space", "backspace", "delete",
+               "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+               "ctrl+a", "ctrl+c", "ctrl+v", "ctrl+x", "ctrl+z", "ctrl+s",
+               "ctrl+f", "ctrl+l", "ctrl+t", "ctrl+w", "alt+tab", "alt+f4",
+               "win+e", "win+d"}
+    normalized = key.strip().lower()
+    if normalized not in allowed:
+        raise ValueError("Key or shortcut is not in JARVIS's safe desktop allowlist.")
+    if os.name != "nt":
+        raise RuntimeError("Desktop keyboard control currently supports Windows only.")
+    import pyautogui
+    pyautogui.FAILSAFE = True
+    parts = normalized.split("+")
+    if len(parts) == 1:
+        pyautogui.press(parts[0])
+    else:
+        pyautogui.hotkey(*parts)
+    return {"pressed": normalized}

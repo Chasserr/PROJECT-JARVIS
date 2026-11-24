@@ -1,4 +1,15 @@
-# JARVIS Engineering Status — 2026-11-23
+# JARVIS Engineering Status — 2026-11-24
+
+## Phase 2 and 3 implementation update
+
+- Added local Windows security posture reporting through Microsoft Defender, firewall, startup, process and listening-port inventory. The audit is read-only and writes a JSON report under `data/pc-security`.
+- Added a separate Microsoft Defender quick-scan skill with `confirm_before_act` permission; the scan does not automatically quarantine or delete files.
+- Fixed restricted worker startup from a virtual environment by launching the concrete base Python interpreter. The restricted-token and Job Object worker tests now pass in both the project venv and the system interpreter.
+- Added the opt-in `Hey Jarvis` openWakeWord listener, using the selected Fifine microphone and local faster-whisper transcription. Start/stop/status endpoints are available; the wake preference persists after explicit opt-in and is disabled by the stop endpoint.
+- Added the Piper Amy medium female voice model locally and streamed generated audio chunks to the Echo Dot. ElevenLabs HTTP streaming remains available, but the configured library voice returned HTTP 402 (paid-plan required) on this account; selecting that voice now falls back to local Piper.
+- Added voice runtime and local Piper tests. Final backend verification: 132 pytest tests passed; Ruff and strict mypy passed across all 28 backend source files.
+- Current limitations: partial/word-by-word STT, real wake-word recognition in a spoken session, Twi accuracy validation and interruption of active speech synthesis remain to be tested or implemented.
+- Full filesystem/network OS sandboxing remains outstanding. This host is Windows 10 Home, Windows Sandbox is not available, and the current restricted-token worker is not a full sandbox.
 
 ## Changes applied in this maintenance pass
 

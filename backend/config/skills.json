@@ -9,6 +9,20 @@
       "argument_types": {}
     },
     {
+      "skill_id": "pc.security_audit",
+      "description": "Run a read-only local Windows security posture audit using Microsoft Defender status, threat history, firewall profiles, startup entries, listening TCP ports and process inventory. Does not change or delete anything.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
+      "skill_id": "pc.defender_quick_scan",
+      "description": "Start a Microsoft Defender quick malware scan on this PC. The scan may use system resources; it does not automatically quarantine or delete files.",
+      "permission": "confirm_before_act",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
       "skill_id": "sandbox.text.stats",
       "description": "Analyze the character, word and line counts of supplied text in a low-integrity restricted worker process. No file, network, browser or desktop access is provided by this operation.",
       "permission": "read_only",
@@ -307,14 +321,14 @@
     },
     {
       "skill_id": "voice.options",
-      "description": "List installed Windows speech voices and selectable audio input/output devices.",
+      "description": "List installed Windows speech voices, local Piper voices and selectable audio input/output devices.",
       "permission": "read_only",
       "arguments": {},
       "argument_types": {}
     },
     {
       "skill_id": "voice.speak",
-      "description": "Speak a response aloud using the installed Windows voice.",
+      "description": "Speak a response aloud using the local Piper voice or a selected supported voice provider.",
       "permission": "autonomous",
       "arguments": {
         "text": "text to speak, maximum 4000 characters"
@@ -492,6 +506,109 @@
       "argument_types": {
         "finding_name": "string",
         "platform": "string"
+      }
+    },
+    {
+      "skill_id": "files.read_text",
+      "description": "Read UTF-8 text files up to 1 MB inside Desktop, Downloads, Documents, or the JARVIS project. Binary files and paths outside approved folders are refused.",
+      "permission": "read_only",
+      "arguments": {
+        "path": "existing text file path inside an approved user folder"
+      },
+      "argument_types": {
+        "path": "string"
+      }
+    },
+    {
+      "skill_id": "files.create_text",
+      "description": "Create a new UTF-8 text file inside Desktop, Downloads, Documents, or the JARVIS project. Never overwrites an existing file; requires approval.",
+      "permission": "confirm_before_act",
+      "arguments": {
+        "path": "new file path inside an approved user folder",
+        "content": "text content, maximum 200000 characters"
+      },
+      "argument_types": {
+        "path": "string",
+        "content": "string"
+      }
+    },
+    {
+      "skill_id": "files.copy",
+      "description": "Copy a file inside approved user folders without overwriting an existing destination. Requires approval.",
+      "permission": "confirm_before_act",
+      "arguments": {
+        "source": "existing file path in an approved folder",
+        "destination": "new destination path in an approved folder"
+      },
+      "argument_types": {
+        "source": "string",
+        "destination": "string"
+      }
+    },
+    {
+      "skill_id": "files.create_directory",
+      "description": "Create one new directory inside approved user folders; parent must already exist. Requires approval.",
+      "permission": "confirm_before_act",
+      "arguments": {
+        "path": "new directory path inside an approved user folder"
+      },
+      "argument_types": {
+        "path": "string"
+      }
+    },
+    {
+      "skill_id": "desktop.press_key",
+      "description": "Press an allowlisted keyboard key or shortcut on the Windows desktop after approval.",
+      "permission": "confirm_before_act",
+      "arguments": {
+        "key": "allowlisted key or shortcut"
+      },
+      "argument_types": {
+        "key": "string"
+      }
+    },
+    {
+      "skill_id": "whatsapp.status",
+      "description": "Check whether WhatsApp Web is linked in the JARVIS managed browser. Read-only.",
+      "permission": "read_only",
+      "arguments": {},
+      "argument_types": {}
+    },
+    {
+      "skill_id": "whatsapp.list_chats",
+      "description": "List visible WhatsApp chat names and preview labels. Does not open or send messages.",
+      "permission": "read_only",
+      "arguments": {
+        "limit": "integer from 1 to 50"
+      },
+      "argument_types": {
+        "limit": "integer"
+      }
+    },
+    {
+      "skill_id": "whatsapp.read_chat",
+      "description": "Open one exactly named visible WhatsApp chat and read up to the requested number of recent visible text messages. Read-only.",
+      "permission": "read_only",
+      "arguments": {
+        "contact": "exact visible contact or group name",
+        "limit": "integer from 1 to 50"
+      },
+      "argument_types": {
+        "contact": "string",
+        "limit": "integer"
+      }
+    },
+    {
+      "skill_id": "whatsapp.send_message",
+      "description": "Send a user-approved text message to exactly one visible WhatsApp contact or group. Requires explicit approval before sending.",
+      "permission": "confirm_before_act",
+      "arguments": {
+        "contact": "exact visible contact or group name",
+        "message": "message text, maximum 2000 characters"
+      },
+      "argument_types": {
+        "contact": "string",
+        "message": "string"
       }
     }
   ]

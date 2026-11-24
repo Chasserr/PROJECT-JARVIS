@@ -24,8 +24,10 @@ from jarvis.skills import (
     browser_control,
     bughunter,
     pc_control,
+    pc_security,
     security_scanner,
     voice_control,
+    voice_runtime,
     web_intelligence,
 )
 from jarvis.skills.manifest import load_skill_manifest
@@ -106,6 +108,8 @@ def _build_agent() -> Agent:
         "security.scan_project": lambda _: asyncio.to_thread(
             security_scanner.scan_project, PROJECT_ROOT, PROJECT_ROOT / "data" / "security-reports"
         ),
+        "pc.security_audit": lambda _: asyncio.to_thread(pc_security.audit_pc),
+        "pc.defender_quick_scan": lambda _: asyncio.to_thread(pc_security.start_defender_quick_scan),
         "bughunter.capabilities": lambda _: asyncio.to_thread(bughunter.capabilities),
         "bughunter.read_skill": lambda args: asyncio.to_thread(
             bughunter.read_skill, args["skill_name"]
@@ -139,6 +143,21 @@ def _build_agent() -> Agent:
         ),
         "files.move": lambda args: asyncio.to_thread(
             pc_control.move_user_file, args["source"], args["destination"]
+        ),
+        "files.read_text": lambda args: asyncio.to_thread(
+            pc_control.read_user_text_file, args["path"]
+        ),
+        "files.create_text": lambda args: asyncio.to_thread(
+            pc_control.create_user_text_file, args["path"], args["content"]
+        ),
+        "files.copy": lambda args: asyncio.to_thread(
+            pc_control.copy_user_file, args["source"], args["destination"]
+        ),
+        "files.create_directory": lambda args: asyncio.to_thread(
+            pc_control.create_user_directory, args["path"]
+        ),
+        "desktop.press_key": lambda args: asyncio.to_thread(
+            pc_control.press_desktop_key, args["key"]
         ),
         "desktop.capture": lambda _: asyncio.to_thread(pc_control.capture_desktop),
         "desktop.click": lambda args: asyncio.to_thread(
@@ -276,6 +295,12 @@ class VoiceLanguageInput(BaseModel):
     )
 
 
+class VoiceWakeStartInput(BaseModel):
+    language: str | None = Field(default=None, min_length=2, max_length=16)
+    threshold: float = Field(default=0.55, ge=0.35, le=0.95)
+    model_size: str = Field(default="small", pattern=r"^(tiny|base|small|medium)$")
+
+
 class MediaProbeInput(BaseModel):
     media_path: str = Field(min_length=1, max_length=2_000)
 
@@ -285,9 +310,30 @@ class RaeaRenderInput(BaseModel):
     output_name: str = Field(min_length=1, max_length=100)
 
 
+def _wake_dispatcher(loop: asyncio.AbstractEventLoop) -> Callable[[str], None]:
+    def dispatch(transcript: str) -> None:
+        future = asyncio.run_coroutine_threadsafe(_handle_wake_command(transcript), loop)
+        future.add_done_callback(
+            lambda completed: completed.exception() if not completed.cancelled() else None
+        )
+    return dispatch
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
+    if memory.get_setting("voice.wake.enabled", "false").lower() == "true":
+        loop = asyncio.get_running_loop()
+        threshold = float(memory.get_setting("voice.wake.threshold", "0.55"))
+        model_size = memory.get_setting("voice.wake.model", "base")
+        language = memory.get_setting("voice.wake.language", "") or None
+        voice_runtime.wake_runtime.start(
+            _wake_dispatcher(loop), language=language,
+            threshold=threshold, model_size=model_size,
+        )
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(voice_runtime.wake_runtime.stop)
 
 
 app = FastAPI(title="JARVIS Core API", version="0.1.0", lifespan=lifespan)
@@ -308,6 +354,31 @@ async def health() -> dict[str, str | bool]:
 async def list_skills() -> dict[str, Any]:
     catalog = _skill_catalog()
     return {"count": len(catalog), "skills": catalog}
+
+
+@app.get("/api/v1/pc-security/status")
+async def pc_security_status() -> dict[str, Any]:
+    return {
+        "available": True,
+        "engine": "Microsoft Defender",
+        "audit_skill": "pc.security_audit",
+        "quick_scan_skill": "pc.defender_quick_scan",
+        "scope": "local Windows security posture; read-only audit",
+    }
+
+
+@app.post("/api/v1/pc-security/audit")
+async def pc_security_audit() -> dict[str, Any]:
+    try:
+        report = await asyncio.to_thread(pc_security.audit_pc)
+        memory.audit(
+            actor="user", action="pc.security.audit", resource="local-pc",
+            decision="completed", reason="Read-only Windows security posture audit completed.",
+            metadata={"computer": report.get("computer"), "threat_detections": len(report.get("threat_detections", []))},
+        )
+        return report
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"PC security audit failed: {exc}") from exc
 
 
 @app.get("/api/v1/security/status")
@@ -440,6 +511,61 @@ def _task_payload(task: AgentTask) -> dict[str, Any]:
         "results": task.results,
         "error": task.error,
     }
+
+
+async def _handle_wake_command(transcript: str) -> None:
+    task = AgentTask(transcript)
+    try:
+        completed = await agent.run(task)
+        if completed.status.value == "awaiting_approval":
+            spoken = "I need your approval before I can perform that action. Please check the JARVIS dashboard."
+        elif completed.status.value == "completed":
+            if completed.results:
+                last = completed.results[-1].get("result", completed.results[-1])
+                spoken = last if isinstance(last, str) else str(last)
+                spoken = spoken[:1500]
+            else:
+                spoken = "Done."
+        else:
+            spoken = f"I could not complete that request. {completed.error or completed.status.value}"[:1000]
+        await asyncio.to_thread(
+            voice_control.speak, spoken, voice_control.PIPER_VOICE_NAME
+        )
+    except Exception:  # noqa: BLE001
+        memory.audit(
+            actor="voice", action="voice.command.failed", resource="wake-listener",
+            decision="error", reason="Voice command processing failed.",
+        )
+
+
+@app.get("/api/v1/voice/wake/status")
+async def voice_wake_status() -> dict[str, Any]:
+    return voice_runtime.wake_runtime.status()
+
+
+@app.post("/api/v1/voice/wake/start")
+async def voice_wake_start(item: VoiceWakeStartInput) -> dict[str, Any]:
+    loop = asyncio.get_running_loop()
+    language = item.language
+    try:
+        result = voice_runtime.wake_runtime.start(
+            _wake_dispatcher(loop), language=language,
+            threshold=item.threshold, model_size=item.model_size,
+        )
+        memory.set_setting("voice.wake.enabled", "true")
+        memory.set_setting("voice.wake.threshold", str(item.threshold))
+        memory.set_setting("voice.wake.model", item.model_size)
+        memory.set_setting("voice.wake.language", language or "")
+        return result
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Wake listener could not start: {exc}") from exc
+
+
+@app.post("/api/v1/voice/wake/stop")
+async def voice_wake_stop() -> dict[str, Any]:
+    result = await asyncio.to_thread(voice_runtime.wake_runtime.stop)
+    memory.set_setting("voice.wake.enabled", "false")
+    return result
 
 
 @app.get("/api/v1/voice/options")
