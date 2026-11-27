@@ -141,3 +141,125 @@ stylesheet, with no manual hard refresh.
 Ruling: CSS, response-header and launcher changes plus a new browser test file;
 no backend application path was touched. Cost if wrong: the dashboard is no
 longer cached at all, so each launch re-reads a few local files from disk.
+
+## 2026-11-27 — connectors, actions, execution, vision, Visuals and the scanner
+
+Everything marked *verified* below was executed on this machine during the
+session. Work is committed in logical units (`ed118c8` connectors, `ac9949e`
+tools, `7d69fa5` agent status + API, `077a6f3` Visuals/Studio UI, `1ade1a1`
+handover); the repository still has no remote, so nothing is pushed.
+
+### Connectors — 8 read-only sources
+
+`backend/src/jarvis/connectors/` (base, registry, internal, local, remote) plus
+`tools/sources.py`. Sources: `memory`, `local_files`, `project_repo`,
+`obsidian`, `web`, `github`, `supabase`, `email` (IMAP, read-only).
+
+- Each connector reports `connected` / `not_configured` / `error` from its own
+  configuration, so a missing token is never shown as a working source.
+- Paths are resolved and checked against the authorised root; a symlink that
+  escapes it is refused, and only known text suffixes are decoded.
+- A fan-out search records a failure per source and keeps the successful hits,
+  each tagged `source` + `locator` + `untrusted: true`.
+- An empty `JARVIS_CONNECTOR_ALLOWLIST` means "no extra restriction"; a
+  non-empty list restricts queries to those ids. Consent is never inferred from
+  an empty list.
+
+Verified: `/api/core/connectors` reported 4 connected (memory, local_files,
+project_repo, web) and 4 `not_configured`; a search returned 22 attributed hits
+with 0 errors across local_files (5), memory (1), project_repo (8), web (8).
+
+### Actions — approval-gated side effects
+
+`tools/actions.py`: `email.draft` (read-only), `email.send` and
+`report.generate` (`CONFIRM`, `dangerous`).
+
+Verified: draft returned `sent: false`; an unapproved `email.send` raised
+`ApprovalRequired`; the approved call with no SMTP configured returned
+"SMTP is not configured" instead of claiming success; `report.generate` wrote a
+real Markdown file and returned its path and byte count.
+
+### Execution — bounded shell, file write, real browser
+
+`tools/execution.py`:
+
+- `shell.run` — argv list only, allowlisted executables, cwd inside the project
+  root, scrubbed environment (no `JARVIS_*` secrets), hard timeout. Verified:
+  `print(6*7)` → exit `0`, stdout `42`.
+- `files.write` — authorised roots only, refuses `.git`, 1 MB cap. Verified with
+  a real nested file.
+- `browser.open` — headless Chromium, host must be on
+  `JARVIS_BROWSER_ALLOWED_DOMAINS`, private/loopback hosts refused. Verified:
+  `https://example.com/` → title `Example Domain` and real body text.
+
+These are not a sandbox: an allowlisted interpreter is still powerful, and the
+approval prompt showing exact argv is the real control.
+
+### Vision — verified with real pixels
+
+`tools/vision.py`, tool `vision.analyze`, `/api/v1/vision/analyze` and
+`/api/core/vision`. Three different images produced three different correct
+answers, and a request without an image answered "No image provided."
+
+Camera path was broken: `app.py` compared the base64 bytes against the literal
+text `b"\xff\xd8"`, so `/api/camera/analyze` returned 415 for every frame.
+After the fix: 200 in 3.7 s with a real description.
+
+### Visuals panel
+
+`web/viz.js` + `web/viz.css`, opened from the new `#railVisuals` button. Every
+mark comes from a live request (agents, tools, sources, runs, health) and an
+endpoint that cannot be read is listed as unavailable rather than invented.
+Browser check: 5 cards, 11 constellation nodes, 8 sources, 11 bars, 30 tools,
+4 live sources, no console errors, no failed requests.
+
+### Dependency scanner — Security Agent unblocked
+
+`tools/scanner.py` adds `security.scan` (read-only) and
+`capabilities.probe_scanner`; `pip-audit` and `pip` joined the shell allowlist
+(`npm` was already there) and `scanner_timeout_s` bounds the audit.
+
+- `pip-audit` runs as `python -m pip_audit -f json` so it audits the interpreter
+  JARVIS itself uses.
+- `npm audit --json` runs when a `package-lock.json` exists in the project root,
+  `web/` or `frontend/`.
+- Four states stay distinct: `ran`, `not_applicable`, `unavailable`, `failed`.
+  Exit code 1 with JSON means *vulnerabilities found and the scan completed*, so
+  it is `ran`, not a failure. An empty stdout is not treated as an empty report.
+- pip-audit advisories carry no severity field, so they are counted as
+  `unknown`; npm's real severities are kept.
+- `scanner` left `UNIMPLEMENTED`; the probe only passes when a real audit ran
+  and parsed.
+
+Verified on this machine (pip-audit 2.10.1 installed into `backend/.venv`):
+the probe returned `{"available": true, "packages": 78, "vulnerabilities": 0}`,
+the live `/api/core/agents` reported `security: connected`, and the roster moved
+to **9 connected / 2 partial** (desktop control, creative generation). A real
+`pip-audit -r` run against a pinned old release confirmed the finding shape
+(`id`, `fix_versions`, `aliases`, `description`).
+
+`npm audit` is implemented and unit-tested against npm's documented JSON, but it
+reports `not_applicable` in this repository because no npm project exists — that
+is the honest state, not a passing scan.
+
+### Verification and rulings
+
+- `pytest` in `backend/`: **181 passed** (13 new scanner tests).
+- `ruff check src tests`: only the pre-existing `SIM112` at
+  `tools/builtin.py:97`.
+- Ruling: `security.scan` is `READ_ONLY` rather than `CONFIRM`. It runs two
+  fixed audit commands and writes nothing; the arbitrary-command risk stays
+  behind `shell.run`, which does pause for approval. Cost if wrong: an agent can
+  trigger a network audit without asking.
+- Ruling: the probe requires a successful Python audit only. Requiring npm here
+  would keep a working capability marked partial for lack of a JavaScript
+  project. Cost if wrong: an environment without pip-audit stays `partial`, which
+  is the truthful result.
+- Review pass for this commit series removed only dead weight (an unused
+  `_host_of` helper, redundant `getattr` fallbacks, an unused container field and
+  parameter, a dead `viz.js` branch, and an allowlist comment that contradicted
+  behaviour).
+
+Known stale text, recorded rather than silently edited: `architecture/README.md`
+still says "No shell execution, arbitrary file access, or network tool exists in
+Phase 1" and quotes 67 tests; both predate this session.

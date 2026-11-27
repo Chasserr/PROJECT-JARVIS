@@ -139,7 +139,7 @@ animations stop under `prefers-reduced-motion`.
 ### 2.7 Honest agent status — unchanged rule, now more agents qualify
 
 - `backend/src/jarvis/capabilities.py` probes: Ollama, Brave, vision round-trip, **shell
-  execution**, **writable root**, **Chromium launch**.
+  execution**, **writable root**, **Chromium launch**, **real pip-audit scan**.
 - A role is `connected` only when every allowlisted tool exists *and* every declared capability
   passes a live probe. Missing implementation is `partial`, never `connected`.
 
@@ -160,7 +160,7 @@ mojibake glyphs, which is why the new control is text-labelled.
 | 1 | Chief Orchestrator | **connected** | |
 | 2 | Software Engineer | **connected** | shell + file-write probes pass |
 | 3 | Research Agent | **connected** | Brave probe answered |
-| 4 | Security Agent | partial | no dependency/vulnerability scanner |
+| 4 | Security Agent | **connected** | pip-audit probe scanned 78 packages |
 | 5 | Testing Agent | **connected** | shell probe passes |
 | 6 | Browser Agent | **connected** | Chromium launch probe passes |
 | 7 | Desktop Agent | partial | mouse/keyboard control lives only in the legacy runtime |
@@ -169,13 +169,13 @@ mojibake glyphs, which is why the new control is text-labelled.
 | 10 | Critic Agent | **connected** | |
 | 11 | Documentation Agent | **connected** | |
 
-8 connected / 3 partial (previously 5 / 6).
+9 connected / 2 partial (previously 5 / 6, then 8 / 3 before the scanner landed).
 
 ---
 
 ## 4. Tests
 
-`backend/.venv/Scripts/python.exe -m pytest` → **168 passed**.
+`backend/.venv/Scripts/python.exe -m pytest` → **181 passed**.
 
 New this session:
 
@@ -189,8 +189,12 @@ New this session:
   host blocked, un-allowlisted domain refused, new tools present on the right roles.
 - `backend/tests/test_api.py` — `/api/v1/connectors` real states, `/api/v1/connectors/search`
   attributed and untrusted-marked hits.
-- `backend/tests/test_vision.py` — updated: `code_edit`/`shell`/`browser_automation` are no longer
-  declared unimplemented.
+- `backend/tests/test_scanner.py` (13 cases) — clean scan, exit 1 with findings counted as a
+  completed scan, missing pip-audit reported as unavailable, broken report as failed, npm
+  `not_applicable` without a lockfile, npm severity/advisory parsing, combined totals, and the
+  probe/status boundary.
+- `backend/tests/test_vision.py` — updated: `code_edit`/`shell`/`browser_automation`/`scanner` are
+  no longer declared unimplemented.
 
 Lint: `ruff check src tests` → only the pre-existing `SIM112 SystemDrive` at
 `backend/src/jarvis/tools/builtin.py:97`.
@@ -201,9 +205,9 @@ Lint: `ruff check src tests` → only the pre-existing `SIM112 SystemDrive` at
 
 New:
 - `backend/src/jarvis/connectors/{__init__,base,registry,internal,local,remote}.py`
-- `backend/src/jarvis/tools/{sources,actions,execution,vision}.py`
+- `backend/src/jarvis/tools/{sources,actions,execution,vision,scanner}.py`
 - `backend/src/jarvis/capabilities.py`
-- `backend/tests/{test_connectors,test_actions,test_execution,test_vision}.py`
+- `backend/tests/{test_connectors,test_actions,test_execution,test_vision,test_scanner}.py`
 - `web/viz.js`, `web/viz.css`
 
 Modified:
@@ -236,9 +240,9 @@ validators run, and a comma-separated value stops the core from starting.
 
 1. **Creative generation** — no image or video backend is installed, so the Creative Agent stays
    `partial` by design. Choosing one (and its credentials) is a user decision.
-2. **Security scanner** — no dependency/vulnerability scanner is wired in. `shell.run` could drive
-   `pip-audit`/`npm audit` if that were added to the allowlist, but the reporting layer does not
-   exist yet.
+2. **Security scanner — done.** `security.scan` runs `pip-audit` (and `npm audit` when an npm
+   project exists), `pip-audit` and `pip` are on the shell allowlist, and `probe_scanner` only
+   passes when a real audit ran and parsed. Live roster: 9 connected / 2 partial.
 3. **Desktop control in the core** — mouse/keyboard control still lives only in the legacy
    `app.py` PC CONTROL runtime. Bridging it needs an approval-gated RPC and a kill path.
 4. **Credentials not supplied**, so these paths are implemented but not exercised against a live
