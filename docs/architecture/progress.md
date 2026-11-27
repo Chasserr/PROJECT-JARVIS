@@ -132,9 +132,11 @@ already cached the old URL, and `launch-jarvis-window.ps1` used to merely focus
 an existing JARVIS window, so a window opened before the fix kept the old
 stylesheet. The server now sends `Cache-Control: no-store, must-revalidate` on
 every response that does not set its own policy (HTML, CSS, JS), and the
-launcher replaces an open JARVIS window instead of focusing it and opens
-`/?launch=<epoch-ms>`. A dashboard started from the scripts therefore always
-loads the current stylesheet, with no manual hard refresh.
+launcher closes the existing browser app window instead of focusing it. That
+window is matched by class (`Chrome_WidgetWin_1`), owning process and the exact
+title `JARVIS`, so consoles such as `JARVIS Core API` are never touched. A
+dashboard started from the scripts therefore always loads the current
+stylesheet, with no manual hard refresh.
 
 Ruling: CSS, response-header and launcher changes plus a new browser test file;
 no backend application path was touched. Cost if wrong: the dashboard is no
