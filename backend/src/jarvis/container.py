@@ -29,6 +29,7 @@ from .tools.agent_tools import register_agent_tools
 from .tools.builtin import build_builtin_registry
 from .tools.execution import register_execution_tools
 from .tools.registry import ToolRegistry
+from .tools.scanner import register_scanner_tool
 from .tools.sources import register_source_tools
 from .tools.vision import register_vision_tool
 
@@ -90,6 +91,7 @@ def build_container(
     register_vision_tool(registry)
     register_action_tools(registry)
     register_execution_tools(registry)
+    register_scanner_tool(registry)
     notes = NoteStore(db, box)
     connectors = build_connector_registry(settings, memory=memory, notes=notes)
     register_source_tools(registry, connectors)

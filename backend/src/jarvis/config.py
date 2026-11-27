@@ -95,8 +95,8 @@ class Settings(BaseSettings):
     shell_enabled: bool = True
     shell_allowed_commands: list[str] = Field(
         default_factory=lambda: [
-            "python", "python3", "py", "pytest", "node", "npm", "npx",
-            "git", "ruff", "echo", "where",
+            "python", "python3", "py", "pip", "pip-audit", "pytest",
+            "node", "npm", "npx", "git", "ruff", "echo", "where",
         ]
     )
     shell_timeout_s: float = Field(default=60.0, gt=0, le=300)
@@ -105,6 +105,8 @@ class Settings(BaseSettings):
     browser_allowed_domains: list[str] = Field(default_factory=list)
     browser_timeout_ms: int = Field(default=20_000, ge=1_000, le=120_000)
     browser_max_chars: int = Field(default=20_000, ge=500, le=200_000)
+    # pip-audit queries an advisory service, so this is longer than a normal command.
+    scanner_timeout_s: float = Field(default=180.0, gt=0, le=600)
     reports_dir: Path | None = None
 
     @field_validator(

@@ -149,6 +149,7 @@ ROSTER: tuple[AgentRole, ...] = (
             "files.search",
             "web.read",
             "memory.search",
+            "security.scan",
             "sources.search",
             "sources.read",
         ),
@@ -157,9 +158,9 @@ ROSTER: tuple[AgentRole, ...] = (
             "findings with severity and a fix. Never provide offensive tooling, and never "
             "exfiltrate secrets. " + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over the local model + read-only host/file tools",
+        backend="Role-scoped AgentLoop run over host, source and dependency-audit tools",
         capability="partial",
-        notes="Read-only by design: this role holds no mutating tool.",
+        notes="Read-only: security.scan runs pip-audit and npm audit without writing anything.",
     ),
     AgentRole(
         id="testing",

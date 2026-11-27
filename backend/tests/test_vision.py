@@ -227,11 +227,11 @@ def test_status_follows_the_verified_capabilities(settings: Settings) -> None:
 def test_unimplemented_capabilities_explain_themselves() -> None:
     from jarvis.capabilities import UNIMPLEMENTED
 
-    for key in ("scanner", "desktop_control", "creative_gen"):
+    for key in ("desktop_control", "creative_gen"):
         assert UNIMPLEMENTED[key].strip()
     # These are now implemented and probed at runtime, so they must not be
     # advertised as permanently missing.
-    for key in ("code_edit", "shell", "browser_automation"):
+    for key in ("code_edit", "shell", "browser_automation", "scanner"):
         assert key not in UNIMPLEMENTED
 
 
