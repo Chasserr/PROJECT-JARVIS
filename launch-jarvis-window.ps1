@@ -15,6 +15,8 @@ public class JarvisWindowFocus {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int cmd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+  public static bool CloseJarvis(IntPtr hWnd) { return PostMessage(hWnd, 0x0010, IntPtr.Zero, IntPtr.Zero); }
   public static IntPtr FindJarvis() {
     IntPtr found = IntPtr.Zero;
     EnumWindows(delegate(IntPtr h, IntPtr p) {
@@ -31,8 +33,11 @@ public class JarvisWindowFocus {
 }
 $existing = [JarvisWindowFocus]::FindJarvis()
 if ($existing -ne [IntPtr]::Zero) {
-  [void][JarvisWindowFocus]::ShowWindowAsync($existing, 9)
-  [void][JarvisWindowFocus]::SetForegroundWindow($existing)
-  exit 0
+  # Replace the window instead of only focusing it. A reused Edge app window can
+  # keep serving a cached stylesheet, which once hid the Agents rail-button fix
+  # until a manual hard refresh.
+  [void][JarvisWindowFocus]::CloseJarvis($existing)
+  Start-Sleep -Milliseconds 700
 }
-Start-Process -FilePath $Edge -ArgumentList "--app=$Url"
+$LaunchUrl = "$Url/?launch=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+Start-Process -FilePath $Edge -ArgumentList "--app=$LaunchUrl"

@@ -566,6 +566,16 @@ def search_web(query):
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*a,**kw): super().__init__(*a,directory=str(ROOT/"web"),**kw)
+    def send_header(self,keyword,value):
+        if keyword.lower()=="cache-control": self._jarvis_cache_control=True
+        super().send_header(keyword,value)
+    def end_headers(self):
+        # The dashboard is a local app that changes often. Never let a browser
+        # keep a stale stylesheet or script after an update.
+        if not getattr(self,"_jarvis_cache_control",False):
+            self.send_header("Cache-Control","no-store, must-revalidate")
+        self._jarvis_cache_control=False
+        super().end_headers()
     def send_json(self,code,obj):
         body=json.dumps(obj).encode(); self.send_response(code); self.send_header("Content-Type","application/json; charset=utf-8"); self.send_header("Content-Length",str(len(body))); self.send_header("Cache-Control","no-store"); self.end_headers(); self.wfile.write(body)
     def reject_unsafe_write(self):
