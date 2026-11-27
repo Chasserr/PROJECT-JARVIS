@@ -27,3 +27,6 @@ jarvis_memory.sqlite3*
 # Spotify OAuth credentials and tokens
 spotify-config.json
 spotify-token.json
+
+# Runtime data (database, master key, generated reports)
+/data/

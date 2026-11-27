@@ -11,20 +11,26 @@ from .agent.loop import AgentLoop
 from .agent.planner import Planner
 from .agent.team import AgentTeam
 from .config import Settings
+from .connectors import ConnectorRegistry, build_connector_registry
 from .db import Database
 from .events import EventBus
 from .llm.base import LLMClient
 from .llm.factory import build_llm
 from .memory.embeddings import EmbeddingProvider, OllamaEmbeddings
 from .memory.store import MemoryStore
+from .notes.store import NoteStore
 from .security.audit import AuditLog
 from .security.crypto import SecretBox
 from .security.kill_switch import KillSwitch
 from .security.permissions import PermissionPolicy
 from .skills.loader import LoadedSkill, SkillLoader
+from .tools.actions import register_action_tools
 from .tools.agent_tools import register_agent_tools
 from .tools.builtin import build_builtin_registry
+from .tools.execution import register_execution_tools
 from .tools.registry import ToolRegistry
+from .tools.sources import register_source_tools
+from .tools.vision import register_vision_tool
 
 UNSET = object()
 log = logging.getLogger(__name__)
@@ -46,6 +52,7 @@ class Container:
     kill_switch: KillSwitch
     team: AgentTeam | None = None
     skills: list[LoadedSkill] = field(default_factory=list)
+    connectors: ConnectorRegistry | None = None
 
 
 def resolve_skills_dir(settings: Settings) -> Path:
@@ -80,6 +87,12 @@ def build_container(
     memory = MemoryStore(db, box, embeddings if embeddings is not None else None)  # type: ignore[arg-type]
     policy = PermissionPolicy(settings.tool_permissions)
     registry = build_builtin_registry(policy=policy, audit=audit, events=events, settings=settings)
+    register_vision_tool(registry)
+    register_action_tools(registry)
+    register_execution_tools(registry)
+    notes = NoteStore(db, box)
+    connectors = build_connector_registry(settings, memory=memory, notes=notes)
+    register_source_tools(registry, connectors)
     loaded_skills = SkillLoader(registry).load_dir(resolve_skills_dir(settings))
     for skill in loaded_skills:
         if skill.missing_env:
@@ -120,4 +133,5 @@ def build_container(
         kill_switch=kill_switch,
         team=team,
         skills=loaded_skills,
+        connectors=connectors,
     )
