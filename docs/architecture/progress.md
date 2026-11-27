@@ -263,3 +263,58 @@ is the honest state, not a passing scan.
 Known stale text, recorded rather than silently edited: `architecture/README.md`
 still says "No shell execution, arbitrary file access, or network tool exists in
 Phase 1" and quotes 67 tests; both predate this session.
+
+## 2026-11-27 — Phone line (Phase 1 of the always-available mission)
+
+The attached mission asks for a phone number, a remote PC bridge, agent
+delegation, real-world capabilities and an honest final report. Before touching
+code the whole core was re-read; the resulting gap analysis and phased plan live
+in [always-available.md](always-available.md). Delegation, workflow automation,
+connectors, memory, email draft/send, shell/file/browser execution and the
+scanner were already real and tested, so this pass added only what was missing
+first in the dependency order: the phone line.
+
+New package `backend/src/jarvis/telephony/`:
+
+- `base.py` — `CallState`, `TelephonyError`, and a `TelephonyProvider` protocol,
+  so Twilio is an adapter rather than the architecture.
+- `twilio.py` — request signature (HMAC-SHA1 over the URL and sorted form
+  fields, pinned to Twilio's published example), TwiML builder with escaping,
+  and the Calls REST API with the provider's own error message surfaced.
+- `gateway.py` — authorisation by signature **and** caller allowlist, greeting,
+  turn delegation to the existing agent loop, a poll loop that keeps the line
+  open while the run finishes, and honest give-up/timeout wording. Outbound
+  dialling validates E.164 before spending money.
+- `routes.py` — public `/telephony/{voice,turn,poll}` webhooks with no bearer
+  token (a vendor cannot send one) and 403 on any refusal; token-protected
+  `/api/v1/telephony/{status,calls}` for inspection and outbound calls.
+- `tool.py` — `phone.call`, `PermissionTier.CONFIRM` + `dangerous`, so the agent
+  can reach the user but can never dial silently.
+
+Supporting changes: telephony settings in `config.py` (provider, public base
+URL, caller allowlist, voice/language, turn timeout, poll budget, Twilio
+credentials), `capabilities.probe_telephony` verifying the Twilio account
+responds, `VoiceGateway` wired into `Container` with the audit log, `.env.example`
+documenting every new variable.
+
+Verified on this machine:
+
+- `backend/tests/test_telephony.py`: **21 tests pass**, no network. Covers the
+  published signature vector, tampering/wrong-token rejection, TwiML escaping,
+  403 for bad signatures and unauthorised callers, a full turn → poll →
+  spoken-answer cycle, re-prompt on empty speech, abandonment and timeout
+  wording, honest `spoken_result` for every run status, the exact mocked Twilio
+  REST payload, `phone.call` gating, and the status endpoint.
+- Full backend suite: **202 passed** (181 before this pass).
+- Real settings probe (no credentials on this machine):
+  `{"configured": false, "provider": "none", "missing":
+  ["JARVIS_TELEPHONY_PROVIDER"], "authorised_callers": 0}` and
+  `probe_telephony` → `{"available": false, "error": "telephony is not
+  configured: JARVIS_TELEPHONY_PROVIDER"}`. That is the truthful state: the
+  gateway exists, the account does not.
+
+Not done, and not claimed: no call has been placed or received. That needs a
+Twilio account, a number, a public HTTPS URL and the caller's number in
+`JARVIS_TELEPHONY_ALLOWED_CALLERS`. Phase 2 (authenticated PC bridge), Phase 3
+(PDF/binary files), Phase 4 (image/video) and Phase 5 (local voice in the core)
+are still open in the plan.

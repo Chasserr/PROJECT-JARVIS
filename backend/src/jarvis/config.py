@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     shell_enabled: bool = True
     shell_allowed_commands: list[str] = Field(
         default_factory=lambda: [
-            "python", "python3", "py", "pip", "pip-audit", "pytest",
+            "python", "python3", "py", "pip-audit", "pytest",
             "node", "npm", "npx", "git", "ruff", "echo", "where",
         ]
     )
@@ -109,6 +109,26 @@ class Settings(BaseSettings):
     scanner_timeout_s: float = Field(default=180.0, gt=0, le=600)
     reports_dir: Path | None = None
 
+    # --- Telephony --------------------------------------------------------
+    # Provider-independent voice gateway. Every call route stays closed until a
+    # provider, its credentials, a public HTTPS base URL and at least one
+    # authorised caller exist, because an open voice endpoint would be a
+    # remote-control surface for this PC.
+    telephony_provider: Literal["none", "twilio"] = "none"
+    telephony_public_base_url: str | None = None
+    telephony_allowed_callers: list[str] = Field(default_factory=list)
+    telephony_greeting: str = "JARVIS here. What do you need?"
+    telephony_voice: str = "Polly.Matthew"
+    telephony_language: str = "en-US"
+    telephony_speech_timeout_s: int = Field(default=3, ge=1, le=10)
+    telephony_turn_timeout_s: float = Field(default=60.0, gt=0, le=180)
+    telephony_poll_seconds: int = Field(default=3, ge=1, le=10)
+    telephony_max_polls: int = Field(default=8, ge=1, le=20)
+    twilio_account_sid: str | None = None
+    twilio_auth_token: SecretStr | None = None
+    twilio_from_number: str | None = None
+    twilio_api_url: str = "https://api.twilio.com"
+
     @field_validator(
         "master_key",
         "anthropic_api_key",
@@ -117,6 +137,7 @@ class Settings(BaseSettings):
         "github_token",
         "supabase_key",
         "email_password",
+        "twilio_auth_token",
         mode="before",
     )
     @classmethod
@@ -142,6 +163,9 @@ class Settings(BaseSettings):
 
     @field_validator(
         "supabase_url",
+        "telephony_public_base_url",
+        "twilio_account_sid",
+        "twilio_from_number",
         "email_imap_host",
         "email_smtp_host",
         "email_user",
@@ -159,6 +183,7 @@ class Settings(BaseSettings):
         "file_write_roots",
         "connector_allowlist",
         "supabase_tables",
+        "telephony_allowed_callers",
         "shell_allowed_commands",
         "browser_allowed_domains",
         mode="before",

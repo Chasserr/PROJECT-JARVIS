@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .agent.critic import Critic
 from .agent.loop import AgentLoop
@@ -24,6 +25,7 @@ from .security.crypto import SecretBox
 from .security.kill_switch import KillSwitch
 from .security.permissions import PermissionPolicy
 from .skills.loader import LoadedSkill, SkillLoader
+from .telephony import VoiceGateway, register_telephony_tool
 from .tools.actions import register_action_tools
 from .tools.agent_tools import register_agent_tools
 from .tools.builtin import build_builtin_registry
@@ -54,6 +56,7 @@ class Container:
     team: AgentTeam | None = None
     skills: list[LoadedSkill] = field(default_factory=list)
     connectors: ConnectorRegistry | None = None
+    telephony: VoiceGateway | None = None
 
 
 def resolve_skills_dir(settings: Settings) -> Path:
@@ -120,6 +123,20 @@ def build_container(
         kill_switch=kill_switch,
         team=team,
     )
+
+    async def _phone_agent(goal: str) -> dict[str, Any]:
+        """Run one phone turn through the same loop, planner and audit log."""
+        result = await agent.start(goal)
+        return result.model_dump(mode="json")
+
+    telephony = VoiceGateway(
+        settings,
+        runner=_phone_agent,
+        audit=lambda action, outcome, detail: audit.record(
+            actor="telephony", action=action, outcome=outcome, detail=detail
+        ),
+    )
+    register_telephony_tool(registry, telephony)
     return Container(
         settings=settings,
         db=db,
@@ -136,4 +153,5 @@ def build_container(
         team=team,
         skills=loaded_skills,
         connectors=connectors,
+        telephony=telephony,
     )

@@ -112,6 +112,36 @@ async def probe_scanner(settings: Settings) -> dict[str, Any]:
     }
 
 
+async def probe_telephony(settings: Settings) -> dict[str, Any]:
+    """Verify the telephony account answers, not just that a token is stored."""
+    from .telephony.base import TelephonyError
+    from .telephony.gateway import VoiceGateway
+
+    async def _no_calls(_goal: str) -> dict[str, Any]:
+        raise RuntimeError("probe gateway must never place a call")
+
+    gateway = VoiceGateway(settings, runner=_no_calls)
+    missing = gateway.missing_settings()
+    if missing:
+        return {"available": False, "error": "telephony is not configured: " + ", ".join(missing)}
+    provider = gateway.provider
+    assert provider is not None  # missing_settings() already proved this
+    try:
+        account = await provider.account()
+    except TelephonyError as exc:
+        return {"available": False, "error": str(exc)}
+    return {
+        "available": True,
+        "provider": provider.name,
+        "account_status": account.get("status"),
+        "number": settings.twilio_from_number,
+        "detail": (
+            f"{provider.name} account {account.get('friendly_name') or 'verified'} "
+            f"is {account.get('status') or 'unknown'}"
+        ),
+    }
+
+
 def probe_code_edit(settings: Settings) -> dict[str, Any]:
     """Prove a writable root exists by writing and removing a probe file."""
     roots = write_roots(settings)
@@ -165,7 +195,7 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
 
     # Probe concurrently: the vision check loads a model, so running these in
     # sequence made the first /agents call take as long as all three combined.
-    llm, brave, vision, shell, browser, scanner = await asyncio.gather(
+    llm, brave, vision, shell, browser, scanner, telephony = await asyncio.gather(
         probe_llm(settings),
         probe_brave(settings),
         probe_vision(
@@ -176,6 +206,7 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
         probe_shell(settings),
         probe_browser(settings),
         probe_scanner(settings),
+        probe_telephony(settings),
     )
     probes: dict[str, Any] = {
         "llm": llm,
@@ -184,6 +215,7 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
         "shell": shell,
         "browser_automation": browser,
         "scanner": scanner,
+        "telephony": telephony,
         "code_edit": probe_code_edit(settings),
     }
     for key, reason in UNIMPLEMENTED.items():
@@ -207,5 +239,6 @@ __all__ = [
     "probe_runtime",
     "probe_scanner",
     "probe_shell",
+    "probe_telephony",
     "reset_cache",
 ]

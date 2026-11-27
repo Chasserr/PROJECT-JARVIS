@@ -26,6 +26,7 @@ from ..memory.embeddings import EmbeddingProvider
 from ..memory.models import Memory, MemoryCreate
 from ..security.crypto import CryptoError
 from ..security.kill_switch import KillSwitchEngaged
+from ..telephony.routes import build_telephony_routers
 from ..tools.registry import ToolError
 from ..tools.vision import OllamaVision, VisionError, decode_image
 from .ratelimit import SlidingWindowLimiter
@@ -493,6 +494,12 @@ def create_app(
             first_bad_seq=result.first_bad_seq,
             message=result.message,
         )
+
+    if container.telephony is not None:
+        public_telephony, admin_telephony = build_telephony_routers(container.telephony)
+        router.include_router(admin_telephony)
+        # Provider webhooks authenticate by signed request, not by API token.
+        app.include_router(public_telephony)
 
     app.include_router(router)
 

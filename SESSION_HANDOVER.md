@@ -302,3 +302,19 @@ curl -s -X POST -F "audio=@/tmp/probe.wav;filename=probe.wav" \
 Vision check: build any PNG, base64 it, `POST /api/v1/vision/analyze` with
 `{"image_base64": "...", "prompt": "What is this?"}`. To confirm the model really sees, send three
 different images and require three different correct answers.
+
+## 2026-11-27 — Phone line added (Phase 1)
+
+- New `jarvis.telephony` package: provider protocol, Twilio adapter (signature,
+  TwiML, Calls API), call gateway, webhook + admin routes, `phone.call` tool
+  (`CONFIRM` + `dangerous`), `probe_telephony`.
+- Wired through `Container` with the hash-chained audit log; new settings and
+  `.env.example` entries.
+- Tests: **202 passed** (21 new in `tests/test_telephony.py`). Ruff unchanged:
+  the pre-existing `SIM112` in `tools/builtin.py`.
+- Live state with the real `.env`: telephony **unconfigured**, missing
+  `JARVIS_TELEPHONY_PROVIDER`. No call has been placed.
+- Plan and gap table: `docs/architecture/always-available.md`.
+- Next: Twilio credentials + public HTTPS URL to exercise a real call; then the
+  authenticated PC bridge (Phase 2), PDF output (Phase 3), generation backends
+  (Phase 4), local voice in the core (Phase 5).
