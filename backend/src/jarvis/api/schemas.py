@@ -55,6 +55,11 @@ class AgentInfo(BaseModel):
     available_tools: list[str]
     missing_tools: list[str]
     notes: str = ""
+    # Derived from real runtime probes, never from the declared capability.
+    requires: list[str] = []
+    unmet_requirements: list[str] = []
+    status: str = "partial"
+    status_detail: str = ""
 
 
 class AgentListResponse(BaseModel):
@@ -90,8 +95,31 @@ class ApprovalDecision(BaseModel):
     approve: bool
 
 
+class VisionRequest(BaseModel):
+    image_base64: str | None = Field(default=None, max_length=12_000_000)
+    image_path: str | None = Field(default=None, max_length=4096)
+    prompt: str = Field(
+        default="Describe this image in detail. Name the objects, colours and setting.",
+        min_length=1,
+        max_length=2000,
+    )
+    model: str | None = Field(default=None, max_length=160)
+
+
 class RunListResponse(BaseModel):
     runs: list[RunResult]
+
+
+class ConnectorSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    sources: list[str] = Field(default_factory=list, max_length=8)
+    limit: int = Field(default=8, ge=1, le=25)
+
+
+class ConnectorReadRequest(BaseModel):
+    source: str = Field(min_length=1, max_length=40)
+    locator: str = Field(min_length=1, max_length=4096)
+    max_chars: int = Field(default=8000, ge=200, le=40_000)
 
 
 class AuditVerifyResponse(BaseModel):

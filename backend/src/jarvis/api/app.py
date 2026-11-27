@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 import urllib.request
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,7 @@ from .. import __version__
 from ..agent.loop import RunError
 from ..agent.models import RunResult, RunStatus
 from ..agent.planner import PlanError
+from ..capabilities import probe_runtime
 from ..config import Settings
 from ..container import UNSET, Container, build_container
 from ..llm.base import LLMClient, LLMError, Message, Role
@@ -25,6 +27,7 @@ from ..memory.models import Memory, MemoryCreate
 from ..security.crypto import CryptoError
 from ..security.kill_switch import KillSwitchEngaged
 from ..tools.registry import ToolError
+from ..tools.vision import OllamaVision, VisionError, decode_image
 from .ratelimit import SlidingWindowLimiter
 from .schemas import (
     AgentInfo,
@@ -32,11 +35,14 @@ from .schemas import (
     ApprovalDecision,
     AuditVerifyResponse,
     ChatRequest,
+    ConnectorReadRequest,
+    ConnectorSearchRequest,
     HealthResponse,
     MemoryListResponse,
     RunListResponse,
     RunRequest,
     ToolInfo,
+    VisionRequest,
 )
 
 log = logging.getLogger(__name__)
@@ -163,17 +169,81 @@ def create_app(
         ]
 
     @router.get("/agents", response_model=AgentListResponse)
-    def list_agents() -> AgentListResponse:
-        """Roster of the specialist team plus the tools each role can use here."""
+    async def list_agents() -> AgentListResponse:
+        """Roster of the specialist team with status derived from real probes."""
         team = container.agent.team
         if team is None:
             return AgentListResponse(orchestrator="", agents=[], specialist_count=0)
-        agents = [AgentInfo(**item) for item in team.describe()]
+        probes = await probe_runtime(settings) if settings.capability_probes else {}
+        agents = [AgentInfo(**item) for item in team.describe(probes)]
         return AgentListResponse(
             orchestrator=team.orchestrator_id,
             agents=agents,
             specialist_count=len(team.specialists()),
         )
+
+    @router.get("/connectors")
+    def list_connectors() -> dict:
+        """Every configured data source and its real authorisation state."""
+        if container.connectors is None:
+            return {"sources": [], "count": 0}
+        described = container.connectors.describe()
+        return {
+            "sources": described,
+            "count": len(described),
+            "connected": [item["id"] for item in described if item["state"] == "connected"],
+        }
+
+    @router.post("/connectors/search")
+    async def search_connectors(payload: ConnectorSearchRequest) -> dict:
+        if container.connectors is None:
+            raise HTTPException(status_code=503, detail="no connectors are configured")
+        try:
+            return await container.connectors.search(
+                payload.query,
+                sources=payload.sources or None,
+                limit=payload.limit,
+            )
+        except Exception as exc:  # noqa: BLE001 - surfaced as a 400, never hidden
+            raise HTTPException(status_code=400, detail=f"{type(exc).__name__}: {exc}") from exc
+
+    @router.post("/connectors/read")
+    async def read_connector(payload: ConnectorReadRequest) -> dict:
+        if container.connectors is None:
+            raise HTTPException(status_code=503, detail="no connectors are configured")
+        try:
+            return await container.connectors.read(
+                payload.source, payload.locator, max_chars=payload.max_chars
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"{type(exc).__name__}: {exc}") from exc
+
+    @router.post("/vision/analyze")
+    async def vision_analyze(payload: VisionRequest) -> dict:
+        """Send real image bytes to the local vision model and return its answer."""
+        roots = [Path(item) for item in settings.file_search_roots]
+        try:
+            image = decode_image(
+                image_base64=payload.image_base64,
+                image_path=payload.image_path,
+                roots=roots,
+            )
+        except VisionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        model = payload.model or settings.vision_model
+        try:
+            result = await OllamaVision(
+                settings.ollama_url, model, timeout=settings.vision_timeout_s
+            ).describe(image, payload.prompt)
+        except VisionError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        container.audit.record(
+            actor="desktop-ui",
+            action="vision.analyzed",
+            outcome="ok",
+            detail={"model": result["model"], "image_bytes": result["image_bytes"]},
+        )
+        return result
 
     @router.get("/system/status")
     def system_status() -> dict:

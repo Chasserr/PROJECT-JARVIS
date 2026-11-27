@@ -143,3 +143,46 @@ def test_rate_limit(settings: Settings) -> None:
     limited = client.get("/api/v1/tools")
     assert limited.status_code == 429
     assert "Retry-After" in limited.headers
+
+
+def test_connectors_endpoint_reports_real_state(settings: Settings) -> None:
+    settings.file_search_roots = []
+    client = _client(settings, [])
+    response = client.get("/api/v1/connectors")
+    assert response.status_code == 200
+    body = response.json()
+    ids = {item["id"] for item in body["sources"]}
+    assert {
+        "local_files",
+        "project_repo",
+        "memory",
+        "web",
+        "github",
+        "supabase",
+        "obsidian",
+        "email",
+    } <= ids
+    assert body["count"] == len(body["sources"])
+    states = {item["id"]: item["state"] for item in body["sources"]}
+    # Memory needs no credentials; local files has no authorised root here.
+    assert states["memory"] == "connected"
+    assert states["local_files"] == "not_configured"
+    assert states["github"] == "not_configured"
+
+
+def test_connector_search_returns_attributed_hits(settings: Settings) -> None:
+    settings.file_search_roots = []
+    client = _client(settings, [])
+    client.post(
+        "/api/v1/memory",
+        json={"content": "connector needle lives here", "kind": "fact", "tags": []},
+    )
+    response = client.post(
+        "/api/v1/connectors/search",
+        json={"query": "connector needle", "sources": ["memory"]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hits"], body
+    assert all(hit["source"] == "memory" for hit in body["hits"])
+    assert all(hit["untrusted"] is True for hit in body["hits"])

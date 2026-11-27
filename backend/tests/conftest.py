@@ -42,6 +42,7 @@ def settings(tmp_path: Path) -> Settings:
         brave_api_key=None,
         ollama_embed_model="",
         max_replans=1,
+        capability_probes=False,
     )
 
 

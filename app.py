@@ -675,6 +675,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.core_request("GET","/api/v1/agents")
         if self.path=="/api/core/runs":
             return self.core_request("GET","/api/v1/agent/runs")
+        if self.path=="/api/core/connectors":
+            return self.core_request("GET","/api/v1/connectors")
         core_match=re.fullmatch(r"/api/core/runs/([0-9a-fA-F-]{36})",self.path)
         if core_match:
             return self.core_request("GET","/api/v1/agent/runs/"+core_match.group(1))
@@ -763,6 +765,13 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         global MODEL
         if self.reject_unsafe_write(): return
+        if self.path=="/api/core/vision":
+            try:
+                size=int(self.headers.get("Content-Length","0"))
+                if size<=0 or size>12*1024*1024: return self.send_json(413,{"error":"Image must be under 12 MB."})
+                payload=json.loads(self.rfile.read(size) or b"{}")
+                return self.core_request("POST","/api/v1/vision/analyze",payload)
+            except ValueError as e: return self.send_json(400,{"error":"Invalid vision request: "+str(e)[:200]})
         if self.path=="/api/spotify/action":
             try:
                 data=self.read_body(); action=data.get("action","")
@@ -779,7 +788,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if image.startswith("data:"): image=image.split(",",1)[-1]
                 import base64
                 raw=base64.b64decode(image,validate=True)
-                if not raw.startswith(b"\\xff\\xd8") and not raw.startswith(b"\\x89PNG"): return self.send_json(415,{"error":"Send a JPEG or PNG camera frame."})
+                if not raw.startswith(b"\xff\xd8") and not raw.startswith(b"\x89PNG"): return self.send_json(415,{"error":"Send a JPEG or PNG camera frame."})
                 if not isinstance(prompt,str) or not prompt.strip() or len(prompt)>1000: return self.send_json(400,{"error":"Enter a short camera question."})
                 with MODEL_LOCK: selected=MODEL
                 vision={"model":selected,"messages":[{"role":"user","content":prompt.strip(),"images":[base64.b64encode(raw).decode("ascii")]}],"stream":False,"think":False,"options":{"temperature":0.2,"num_predict":400}}
@@ -839,6 +848,14 @@ class Handler(SimpleHTTPRequestHandler):
             temp_path.write_text(json.dumps(cfg,indent=2)+"\\n",encoding="utf-8")
             os.replace(temp_path,config_path)
             return self.send_json(200,{"ok":True,"configured":True,"message":"Spotify credentials saved locally on this PC."})
+        if self.path=="/api/core/connectors/search":
+            query=data.get("query","")
+            sources=data.get("sources") or []
+            if not isinstance(query,str) or not query.strip() or len(query)>500:
+                return self.send_json(400,{"error":"Search query must be between 1 and 500 characters."})
+            if not isinstance(sources,list) or len(sources)>8:
+                return self.send_json(400,{"error":"At most 8 sources can be queried at once."})
+            return self.core_request("POST","/api/v1/connectors/search",{"query":query.strip(),"sources":[str(item) for item in sources],"limit":8})
         if self.path=="/api/core/runs":
             goal=data.get("goal")
             context=data.get("context","")

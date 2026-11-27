@@ -95,6 +95,11 @@ ROSTER: tuple[AgentRole, ...] = (
         description="Inspects code and files, plans implementation work, and records changes.",
         tools=(
             "files.search",
+            "files.write",
+            "shell.run",
+            "sources.list",
+            "sources.search",
+            "sources.read",
             "web.read",
             "system.info",
             "notes.create",
@@ -104,17 +109,27 @@ ROSTER: tuple[AgentRole, ...] = (
         persona=(
             "You are a software engineer. Read before you change, prefer the smallest "
             "correct change, and state what you verified versus what you assumed. "
+            "files.write and shell.run both pause for user approval; never assume they ran. "
             + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over the local model + file/web/notes tools",
+        backend="Role-scoped AgentLoop run over file, shell, source and notes tools",
         capability="partial",
-        notes="No code-execution or write-to-repo tool exists yet; this role can read and plan only.",
+        notes="Writes and commands require explicit approval on every call.",
     ),
     AgentRole(
         id="research",
         name="Research Agent",
         description="Searches the web, reads sources, and stores verified findings in memory.",
-        tools=("web.search", "web.read", "memory.search", "memory.save"),
+        tools=(
+            "web.search",
+            "web.read",
+            "vision.analyze",
+            "memory.search",
+            "memory.save",
+            "sources.list",
+            "sources.search",
+            "sources.read",
+        ),
         persona=(
             "You are a research analyst. Prefer primary sources, cite the exact URL for "
             "each claim, and never invent a fact or a number. Say what you could not verify. "
@@ -128,7 +143,15 @@ ROSTER: tuple[AgentRole, ...] = (
         id="security",
         name="Security Agent",
         description="Reviews configuration and host state for defensive security issues.",
-        tools=("system.info", "system.metrics", "files.search", "web.read", "memory.search"),
+        tools=(
+            "system.info",
+            "system.metrics",
+            "files.search",
+            "web.read",
+            "memory.search",
+            "sources.search",
+            "sources.read",
+        ),
         persona=(
             "You are a defensive security reviewer. Report concrete, evidence-backed "
             "findings with severity and a fix. Never provide offensive tooling, and never "
@@ -142,35 +165,36 @@ ROSTER: tuple[AgentRole, ...] = (
         id="testing",
         name="Testing Agent",
         description="Checks host and runtime state and verifies results are real.",
-        tools=("system.info", "system.metrics", "files.search", "time.now"),
+        tools=("system.info", "system.metrics", "files.search", "time.now", "shell.run"),
         persona=(
             "You are a verification engineer. A claim is only verified when a tool result "
             "shows it. Report failures honestly and never mark unverified work as passing. "
+            "Use shell.run to run the real test suite; quote the exit code. "
             + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over the local model + host metrics tools",
+        backend="Role-scoped AgentLoop run over host metrics and the sandboxed shell",
         capability="partial",
-        notes="Cannot execute the test suite yet; no shell tool exists.",
+        notes="shell.run pauses for approval on every command.",
     ),
     AgentRole(
         id="browser",
         name="Browser Agent",
         description="Reads and summarises web content through the safe fetcher.",
-        tools=("web.read", "web.search"),
+        tools=("browser.open", "web.read", "web.search", "vision.analyze", "sources.search"),
         persona=(
-            "You are a browser assistant. Work only through the provided fetch tools and "
-            "respect their SSRF guard. Never claim to have clicked, typed, or logged in. "
-            + _COMMON_RULES
+            "You are a browser assistant. Use browser.open for pages on the authorised "
+            "domain list; it renders real Chromium output. Never claim to have clicked, "
+            "typed, or logged in. " + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over web.read/web.search",
+        backend="Role-scoped AgentLoop run over browser.open (Playwright) and web.read",
         capability="partial",
-        notes="No real browser automation (Playwright) is wired into the core yet.",
+        notes="browser.open is limited to JARVIS_BROWSER_ALLOWED_DOMAINS.",
     ),
     AgentRole(
         id="desktop",
         name="Desktop Agent",
         description="Reports Windows host state for approved desktop operations.",
-        tools=("system.info", "system.metrics"),
+        tools=("system.info", "system.metrics", "vision.analyze"),
         persona=(
             "You are a desktop assistant. Report host state accurately. You cannot click, "
             "type, or launch applications from this role; say so if asked. "
@@ -187,7 +211,14 @@ ROSTER: tuple[AgentRole, ...] = (
         id="creative",
         name="Creative Agent",
         description="Gathers references and drafts creative briefs and copy.",
-        tools=("web.search", "web.read", "files.search", "notes.create"),
+        tools=(
+            "web.search",
+            "web.read",
+            "files.search",
+            "vision.analyze",
+            "notes.create",
+            "report.generate",
+        ),
         persona=(
             "You are a creative director. Produce concrete briefs and copy, and cite "
             "references you actually retrieved. Never claim to have generated an image or "
@@ -250,6 +281,29 @@ assert len([role for role in ROSTER if role.id != ORCHESTRATOR_ID]) == 10, (
     "the roster must contain exactly ten specialist roles"
 )
 
+# Capabilities each role needs to do its *whole* job. Every key here is verified
+# at runtime by jarvis.capabilities.probe_runtime; a role whose requirements are
+# unmet is reported as partial, never as connected.
+ROLE_REQUIRES: dict[str, tuple[str, ...]] = {
+    ORCHESTRATOR_ID: ("llm",),
+    "engineer": ("code_edit", "shell"),
+    "research": ("brave",),
+    "security": ("scanner",),
+    "testing": ("shell",),
+    "browser": ("browser_automation",),
+    "desktop": ("desktop_control",),
+    "creative": ("creative_gen",),
+    "memory": (),
+    "critic": (),
+    "writer": (),
+}
+
+
+def _probe_ok(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(value.get("available"))
+    return bool(value)
+
 
 @dataclass
 class AgentTeam:
@@ -300,8 +354,14 @@ class AgentTeam:
     def specs_for(self, role: AgentRole | None) -> list[dict[str, Any]]:
         return [manifest.spec() for manifest in self.manifests_for(role)]
 
-    def describe(self) -> list[dict[str, Any]]:
-        """Roster plus the tools that actually exist on this machine right now."""
+    def describe(self, probes: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Roster plus the tools and capabilities that actually exist right now.
+
+        ``probes`` comes from :func:`jarvis.capabilities.probe_runtime`. When it
+        is omitted, requirements are treated as unverified, so no role can claim
+        to be connected without evidence.
+        """
+        probes = probes or {}
         described: list[dict[str, Any]] = []
         for role in ROSTER:
             entry = role.as_dict()
@@ -309,6 +369,25 @@ class AgentTeam:
             entry["missing_tools"] = [
                 name for name in role.tools if name != ALL_TOOLS[0] and not self.registry.has(name)
             ]
+            requires = ROLE_REQUIRES.get(role.id, ())
+            unmet = [key for key in requires if not _probe_ok(probes.get(key))]
+            reasons: list[str] = []
+            if entry["missing_tools"]:
+                reasons.append("missing tools: " + ", ".join(entry["missing_tools"]))
+            for key in unmet:
+                info = probes.get(key)
+                detail = info.get("error") if isinstance(info, dict) else None
+                reasons.append(f"{key}: {detail or 'unverified'}")
+            if entry["missing_tools"]:
+                status = "blocked"
+            elif unmet:
+                status = "partial"
+            else:
+                status = "connected"
+            entry["requires"] = list(requires)
+            entry["unmet_requirements"] = unmet
+            entry["status"] = status
+            entry["status_detail"] = "; ".join(reasons)
             described.append(entry)
         return described
 
