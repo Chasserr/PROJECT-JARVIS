@@ -82,3 +82,60 @@ are actually installed and working.
 
 Ruling: doc-only changes, no code touched, so the suite was not re-run after the
 edit. Cost if wrong: none — no executable path changed.
+
+## 2026-11-27 — Agents rail button unusable (layout, not overlay)
+
+Reported twice: an ordinary mouse click on the dashboard **Agents** rail button
+did not open the specialist roster.
+
+Root cause — two interacting defects in the `@media (max-width:850px)` block of
+`web/openjarvis.css`:
+
+1. `.rail-item span{display:none}` hid the only content of every rail button
+   (they carry text labels, not icons), leaving eight blank squares.
+2. `web/style.css` forces `.left-rail .rail-item{width:100%!important}`; once
+   the rail switched to `flex-direction:row`, the eight buttons flex-shrank to
+   roughly 18 px wide.
+
+Measured at a 420 px viewport before the fix: button `18x42`, label
+`display:none`. Playwright refused the element with "no visible area to click".
+Overlay, stacking context, `pointer-events` and event propagation were each
+checked and ruled out: `document.elementsFromPoint()` returned the button first,
+and a capture-phase log showed a clean
+`pointerdown -> mousedown -> focusin -> mouseup -> click` on `#railAgents`.
+
+Fix: the responsive rule now keeps labels (`display:inline!important`) and sizes
+each button with `width:auto`, `flex:0 0 auto`, `min-width:max-content` and
+`min-height:40px`. It is written at matching specificity so it wins over
+`style.css`'s forced width. `web/index.html` bumps the stylesheet cache-buster
+to `openjarvis.css?v=20261127-agents-rail-1`.
+
+Verification: real-mouse sweep over 17 viewport widths (320-1920). Labels
+visible everywhere, targets 59-164 px wide, one physical click opens the panel
+with all 11 agents and the close button hides it. Desktop layout is unchanged
+(column rail, 164x58).
+
+Regression tests: `backend/tests/test_dashboard_agents_panel.py` (9 cases) drives
+the installed Chrome against a real HTTP server with a stubbed roster, so
+Playwright hit-tests the button exactly as a user clicks it. They fail against
+the old CSS and pass against the fix. Suite: **123 passed**.
+
+Where `web/` is served from: `app.py` sets `ROOT = Path(__file__).resolve().parent`
+and serves `ROOT/"web"`, so the dashboard always comes from the folder holding
+`app.py`, never the process working directory. `restart-jarvis-server.ps1` and
+`start-jarvis.bat` both run `app.py` from that same project folder, and only one
+`openjarvis.css` exists on this machine, so the fix reaches the dashboard the
+launchers open.
+
+Stale assets: bumping the version string only helped browsers that had not
+already cached the old URL, and `launch-jarvis-window.ps1` used to merely focus
+an existing JARVIS window, so a window opened before the fix kept the old
+stylesheet. The server now sends `Cache-Control: no-store, must-revalidate` on
+every response that does not set its own policy (HTML, CSS, JS), and the
+launcher replaces an open JARVIS window instead of focusing it and opens
+`/?launch=<epoch-ms>`. A dashboard started from the scripts therefore always
+loads the current stylesheet, with no manual hard refresh.
+
+Ruling: CSS, response-header and launcher changes plus a new browser test file;
+no backend application path was touched. Cost if wrong: the dashboard is no
+longer cached at all, so each launch re-reads a few local files from disk.
