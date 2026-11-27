@@ -103,6 +103,16 @@ CREATE TABLE IF NOT EXISTS reminders (
     deleted_at REAL
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(deleted_at, status, due_at);
+
+-- Specialist-agent metadata. Kept in its own table so existing run rows and
+-- their encrypted payloads are untouched by the agent team feature.
+CREATE TABLE IF NOT EXISTS agent_runs (
+    run_id        TEXT PRIMARY KEY,
+    role          TEXT,
+    parent_run_id TEXT,
+    created_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_parent ON agent_runs(parent_run_id);
 """
 
 
@@ -130,7 +140,7 @@ class Database:
         with self.connection() as conn:
             conn.execute("PRAGMA journal_mode = WAL")
             conn.executescript(SCHEMA)
-            conn.execute("PRAGMA user_version = 2")
+            conn.execute("PRAGMA user_version = 3")
 
     def health(self) -> bool:
         try:

@@ -661,6 +661,8 @@ class Handler(SimpleHTTPRequestHandler):
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
         if self.path=="/api/core/tools":
             return self.core_request("GET","/api/v1/tools")
+        if self.path=="/api/core/agents":
+            return self.core_request("GET","/api/v1/agents")
         if self.path=="/api/core/runs":
             return self.core_request("GET","/api/v1/agent/runs")
         core_match=re.fullmatch(r"/api/core/runs/([0-9a-fA-F-]{36})",self.path)

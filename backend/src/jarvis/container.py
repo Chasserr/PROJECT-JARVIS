@@ -9,6 +9,7 @@ from pathlib import Path
 from .agent.critic import Critic
 from .agent.loop import AgentLoop
 from .agent.planner import Planner
+from .agent.team import AgentTeam
 from .config import Settings
 from .db import Database
 from .events import EventBus
@@ -21,6 +22,7 @@ from .security.crypto import SecretBox
 from .security.kill_switch import KillSwitch
 from .security.permissions import PermissionPolicy
 from .skills.loader import LoadedSkill, SkillLoader
+from .tools.agent_tools import register_agent_tools
 from .tools.builtin import build_builtin_registry
 from .tools.registry import ToolRegistry
 
@@ -42,6 +44,7 @@ class Container:
     critic: Critic
     agent: AgentLoop
     kill_switch: KillSwitch
+    team: AgentTeam | None = None
     skills: list[LoadedSkill] = field(default_factory=list)
 
 
@@ -84,6 +87,8 @@ def build_container(
                 "skill %s is missing env vars: %s", skill.name, ", ".join(skill.missing_env)
             )
     client = llm or build_llm(settings)
+    team = AgentTeam(registry)
+    register_agent_tools(registry)
     planner = Planner(client, registry, settings)
     critic = Critic(client)
     agent = AgentLoop(
@@ -98,6 +103,7 @@ def build_container(
         audit=audit,
         settings=settings,
         kill_switch=kill_switch,
+        team=team,
     )
     return Container(
         settings=settings,
@@ -112,5 +118,6 @@ def build_container(
         critic=critic,
         agent=agent,
         kill_switch=kill_switch,
+        team=team,
         skills=loaded_skills,
     )

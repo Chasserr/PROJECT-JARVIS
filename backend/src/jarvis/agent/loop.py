@@ -33,6 +33,7 @@ from .models import (
 )
 from .planner import PlanError, Planner
 from .prompts import ANSWER_SYSTEM, answer_user
+from .team import ORCHESTRATOR_ID, AgentRole, AgentTeam
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class AgentLoop:
         audit: AuditLog,
         settings: Settings,
         kill_switch: KillSwitch,
+        team: AgentTeam | None = None,
     ) -> None:
         self._db = db
         self._box = box
@@ -70,6 +72,35 @@ class AgentLoop:
         self._audit = audit
         self._settings = settings
         self._kill_switch = kill_switch
+        self._team = team
+
+    @property
+    def team(self) -> AgentTeam | None:
+        """The specialist roster, if one is configured."""
+        return self._team
+
+    def _resolve_role(
+        self, role: str | None, depth: int
+    ) -> tuple[AgentRole | None, str | None]:
+        """Resolve a role id, enforcing the delegation depth limit."""
+        if self._team is None:
+            if role is not None:
+                raise RunError("no specialist agent team is configured")
+            return None, None
+        if depth > self._team.max_depth:
+            raise RunError(
+                f"delegation depth {depth} exceeds the limit of {self._team.max_depth}"
+            )
+        role_id = role or ORCHESTRATOR_ID
+        try:
+            return self._team.get(role_id), role_id
+        except KeyError as exc:
+            raise RunError(str(exc)) from exc
+
+    def _scoped_specs(self, role: AgentRole | None) -> list[dict[str, Any]] | None:
+        if self._team is None or role is None:
+            return None
+        return self._team.specs_for(role)
 
     async def start(
         self,
@@ -78,12 +109,16 @@ class AgentLoop:
         session_id: str = "default",
         context: str = "",
         approval_handler: ApprovalHandler | None = None,
+        role: str | None = None,
+        depth: int = 0,
+        parent_run_id: str | None = None,
     ) -> RunResult:
         goal = goal.strip()
         if not goal:
             raise RunError("goal must not be empty")
         if self._kill_switch.is_engaged():
             raise KillSwitchEngaged("kill switch is engaged; release it before starting work")
+        role_obj, role_id = self._resolve_role(role, depth)
         run_id = str(uuid.uuid4())
         now = time.time()
         with self._db.connection() as conn:
@@ -110,11 +145,23 @@ class AgentLoop:
             actor="agent",
             action="run.started",
             outcome="ok",
-            detail={"run_id": run_id, "goal": goal, "session_id": session_id},
+            detail={
+                "run_id": run_id,
+                "goal": goal,
+                "session_id": session_id,
+                "role": role_id,
+                "parent_run_id": parent_run_id,
+            },
         )
+        self._save_meta(run_id, role_id, parent_run_id)
         try:
             context = await self._build_context(goal, context)
-            plan = await self._planner.plan(goal, context)
+            plan = await self._planner.plan(
+                goal,
+                context,
+                tools=self._scoped_specs(role_obj),
+                persona=role_obj.persona if role_obj else None,
+            )
         except PlanError as exc:
             await self._fail(run_id, f"planning failed: {exc}", None, [])
             return self._load(run_id)
@@ -129,6 +176,9 @@ class AgentLoop:
             approvals=set(),
             handler=approval_handler,
             context=context,
+            role=role_id,
+            depth=depth,
+            parent_run_id=parent_run_id,
         )
 
     async def resume(
@@ -154,6 +204,9 @@ class AgentLoop:
         results = [StepRecord.model_validate(item) for item in self._dec_json(row["results"])]
         goal = self._dec_text(row["goal"])
         attempt = int(row["attempt"])
+        meta = self._meta(run_id) or {}
+        role_id = meta.get("role")
+        parent_run_id = meta.get("parent_run_id")
 
         if not approved:
             await self._fail(run_id, "approval denied by user", plan, results)
@@ -176,6 +229,9 @@ class AgentLoop:
             approvals={pending.signature},
             handler=approval_handler,
             context=await self._build_context(goal, ""),
+            role=role_id,
+            depth=0,
+            parent_run_id=parent_run_id,
         )
 
     async def _execute(
@@ -190,13 +246,28 @@ class AgentLoop:
         approvals: set[str],
         handler: ApprovalHandler | None,
         context: str,
+        role: str | None = None,
+        depth: int = 0,
+        parent_run_id: str | None = None,
     ) -> RunResult:
+        role_obj = self._team.get(role) if (role and self._team) else None
+        allowed = self._team.allowed_names(role_obj) if role_obj else None
+        scoped = self._scoped_specs(role_obj)
+        persona = role_obj.persona if role_obj else None
         index = len(results)
         while index < len(plan.steps):
             if self._kill_switch.is_engaged():
                 await self._fail(run_id, "kill switch engaged during run", plan, results)
                 return self._load(run_id)
             step = plan.steps[index]
+            if allowed is not None and step.tool not in allowed:
+                await self._fail(
+                    run_id,
+                    f"agent '{role}' is not permitted to use tool '{step.tool}'",
+                    plan,
+                    results,
+                )
+                return self._load(run_id)
             signature = approval_signature(step.tool, step.args)
             tool_context = ToolContext(
                 memory=self._memory,
@@ -204,9 +275,11 @@ class AgentLoop:
                 events=self._events,
                 db=self._db,
                 box=self._box,
-                actor="agent",
+                actor=role or "agent",
                 run_id=run_id,
                 session_id=session_id,
+                loop=self,
+                depth=depth,
             )
             try:
                 result = await self._registry.execute(
@@ -269,7 +342,15 @@ class AgentLoop:
             return self._load(run_id)
 
         try:
-            revised = await self._planner.replan(goal, plan, results, verdict.reason, context)
+            revised = await self._planner.replan(
+                goal,
+                plan,
+                results,
+                verdict.reason,
+                context,
+                tools=scoped,
+                persona=persona,
+            )
         except PlanError as exc:
             await self._fail(run_id, f"replanning failed: {exc}", plan, results)
             return self._load(run_id)
@@ -290,6 +371,9 @@ class AgentLoop:
             approvals=approvals,
             handler=handler,
             context=context,
+            role=role,
+            depth=depth,
+            parent_run_id=parent_run_id,
         )
 
     async def _build_context(self, goal: str, base: str) -> str:
@@ -373,6 +457,23 @@ class AgentLoop:
         )
         return self._load(run_id)
 
+    def _save_meta(self, run_id: str, role: str | None, parent_run_id: str | None) -> None:
+        with self._db.connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO agent_runs (run_id, role, parent_run_id, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (run_id, role, parent_run_id, time.time()),
+            )
+
+    def _meta(self, run_id: str) -> dict[str, Any] | None:
+        with self._db.connection() as conn:
+            row = conn.execute(
+                "SELECT role, parent_run_id FROM agent_runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return {"role": row["role"], "parent_run_id": row["parent_run_id"]}
+
     def _row(self, run_id: str) -> Any | None:
         with self._db.connection() as conn:
             return conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
@@ -399,6 +500,8 @@ class AgentLoop:
             error=error,
             approval=ApprovalRequest.model_validate(pending_data) if pending_data else None,
             attempt=int(row["attempt"]),
+            role=(self._meta(row["id"]) or {}).get("role"),
+            parent_run_id=(self._meta(row["id"]) or {}).get("parent_run_id"),
         )
 
     def _save_plan(self, run_id: str, plan: Plan, *, attempt: int) -> None:

@@ -27,6 +27,8 @@ from ..security.kill_switch import KillSwitchEngaged
 from ..tools.registry import ToolError
 from .ratelimit import SlidingWindowLimiter
 from .schemas import (
+    AgentInfo,
+    AgentListResponse,
     ApprovalDecision,
     AuditVerifyResponse,
     ChatRequest,
@@ -159,6 +161,19 @@ def create_app(
             )
             for manifest in container.registry.manifests()
         ]
+
+    @router.get("/agents", response_model=AgentListResponse)
+    def list_agents() -> AgentListResponse:
+        """Roster of the specialist team plus the tools each role can use here."""
+        team = container.agent.team
+        if team is None:
+            return AgentListResponse(orchestrator="", agents=[], specialist_count=0)
+        agents = [AgentInfo(**item) for item in team.describe()]
+        return AgentListResponse(
+            orchestrator=team.orchestrator_id,
+            agents=agents,
+            specialist_count=len(team.specialists()),
+        )
 
     @router.get("/system/status")
     def system_status() -> dict:
@@ -342,7 +357,10 @@ def create_app(
     async def start_run(payload: RunRequest):
         try:
             result = await container.agent.start(
-                payload.goal, session_id=payload.session_id, context=payload.context
+                payload.goal,
+                session_id=payload.session_id,
+                context=payload.context,
+                role=payload.role,
             )
         except KillSwitchEngaged as exc:
             raise HTTPException(status_code=423, detail=str(exc)) from exc

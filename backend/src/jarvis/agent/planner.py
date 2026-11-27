@@ -24,9 +24,18 @@ class Planner:
         self._registry = registry
         self._settings = settings
 
-    async def plan(self, goal: str, context: str = "") -> Plan:
-        prompt = planner_user(goal, self._registry.specs(), self._settings.max_plan_steps, context)
-        return await self._request(prompt)
+    async def plan(
+        self,
+        goal: str,
+        context: str = "",
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        persona: str | None = None,
+    ) -> Plan:
+        """Build a plan. ``tools`` narrows the tool list to a specialist's scope."""
+        specs = self._registry.specs() if tools is None else tools
+        prompt = planner_user(goal, specs, self._settings.max_plan_steps, context)
+        return await self._request(prompt, specs, persona)
 
     async def replan(
         self,
@@ -35,21 +44,33 @@ class Planner:
         results: list[StepRecord],
         critique: str,
         context: str = "",
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        persona: str | None = None,
     ) -> Plan:
+        specs = self._registry.specs() if tools is None else tools
         prompt = replanner_user(
             goal,
-            self._registry.specs(),
+            specs,
             previous,
             results,
             critique,
             self._settings.max_plan_steps,
             context,
         )
-        return await self._request(prompt)
+        return await self._request(prompt, specs, persona)
 
-    async def _request(self, prompt: str) -> Plan:
+    async def _request(
+        self,
+        prompt: str,
+        tools: list[dict[str, Any]] | None = None,
+        persona: str | None = None,
+    ) -> Plan:
+        system = PLANNER_SYSTEM
+        if persona:
+            system = f"{PLANNER_SYSTEM}\n\nRole assignment:\n{persona}"
         messages = [
-            Message(role=Role.SYSTEM, content=PLANNER_SYSTEM),
+            Message(role=Role.SYSTEM, content=system),
             Message(role=Role.USER, content=prompt),
         ]
         last_error = "planner returned no plan"
@@ -66,7 +87,7 @@ class Planner:
                 raise PlanError(str(exc)) from exc
             try:
                 plan = self._parse(response.text)
-                self._validate(plan)
+                self._validate(plan, tools)
                 return plan
             except (PlanError, ToolValidationError) as exc:
                 last_error = str(exc)
@@ -105,12 +126,17 @@ class Planner:
         except Exception as exc:
             raise PlanError(f"invalid plan shape: {exc}") from exc
 
-    def _validate(self, plan: Plan) -> None:
+    def _validate(self, plan: Plan, tools: list[dict[str, Any]] | None = None) -> None:
         if len(plan.steps) > self._settings.max_plan_steps:
             raise PlanError(
                 f"plan has {len(plan.steps)} steps; limit is {self._settings.max_plan_steps}"
             )
+        scope = {item["name"] for item in tools} if tools is not None else None
         for index, step in enumerate(plan.steps):
+            if scope is not None and step.tool not in scope:
+                raise PlanError(
+                    f"step {index + 1} uses '{step.tool}', which is outside this agent's scope"
+                )
             if not self._registry.has(step.tool):
                 raise PlanError(f"step {index + 1} uses unknown tool '{step.tool}'")
             tool = self._registry.get(step.tool)

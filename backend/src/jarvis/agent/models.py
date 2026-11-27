@@ -56,3 +56,5 @@ class RunResult(BaseModel):
     error: str | None = None
     approval: ApprovalRequest | None = None
     attempt: int = 0
+    role: str | None = None
+    parent_run_id: str | None = None

@@ -44,6 +44,25 @@ class ToolInfo(BaseModel):
         )
 
 
+class AgentInfo(BaseModel):
+    id: str
+    name: str
+    description: str
+    backend: str
+    capability: str
+    can_delegate: bool
+    tools: list[str]
+    available_tools: list[str]
+    missing_tools: list[str]
+    notes: str = ""
+
+
+class AgentListResponse(BaseModel):
+    orchestrator: str
+    agents: list[AgentInfo]
+    specialist_count: int
+
+
 class MemoryListResponse(BaseModel):
     memories: list[Memory]
     count: int
@@ -63,6 +82,8 @@ class RunRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=8000)
     session_id: str = Field(default="default", max_length=100)
     context: str = Field(default="", max_length=8000)
+    # Run the goal as one specialist instead of the orchestrator.
+    role: str | None = Field(default=None, max_length=40)
 
 
 class ApprovalDecision(BaseModel):

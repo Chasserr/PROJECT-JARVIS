@@ -60,6 +60,10 @@ class ToolContext:
     actor: str = "local"
     run_id: str | None = None
     session_id: str = "default"
+    # Set by AgentLoop so agent.* tools can reach the orchestrator without a
+    # module-level singleton. ``depth`` guards recursive delegation.
+    loop: Any = None
+    depth: int = 0
 
 
 ToolReturn = ToolResult | dict[str, Any] | str
