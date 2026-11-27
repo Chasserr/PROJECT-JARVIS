@@ -1,0 +1,285 @@
+/* JARVIS Core Agent — scoped glassmorphism.
+   Every rule is prefixed with #coreAgentPanel, so the dashboard shell, rail,
+   orb, camera, PC Control and Workflow Studio keep their existing styles. */
+
+html body #coreAgentPanel.core-agent-panel:not(.hidden){
+  display:block!important;position:fixed!important;z-index:100001!important;
+  inset:72px 10px 10px!important;width:auto!important;height:auto!important;
+  max-width:1380px!important;max-height:calc(100dvh - 82px)!important;
+  margin:0 auto!important;overflow:auto!important;border-radius:24px!important;
+  background:
+    radial-gradient(120% 90% at 12% -10%,rgba(120,72,255,.20),transparent 55%),
+    radial-gradient(90% 80% at 92% 0%,rgba(0,190,220,.14),transparent 52%),
+    linear-gradient(160deg,#080a1b 0%,#070612 46%,#05040d 100%)!important;
+  border:1px solid rgba(150,120,255,.22)!important;
+  box-shadow:0 40px 120px rgba(4,2,18,.85),0 0 0 1px rgba(255,255,255,.03) inset!important;
+  color:#e8e6ff;
+  font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+html body #coreAgentPanel.core-agent-panel.hidden{display:none!important}
+
+#coreAgentPanel *{box-sizing:border-box}
+#coreAgentPanel .ca-shell{display:flex;flex-direction:column;gap:11px;padding:14px 16px 16px}
+#coreAgentPanel .ca-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- header ---------- */
+#coreAgentPanel .ca-header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:2px 2px 10px}
+#coreAgentPanel .ca-brand{display:flex;align-items:center;gap:12px;min-width:0}
+#coreAgentPanel .ca-mark{
+  display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;border-radius:14px;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;color:#f6f2ff;
+  background:linear-gradient(145deg,#a06bff,#5b2bd6);box-shadow:0 0 26px rgba(150,92,255,.55),inset 0 1px 0 rgba(255,255,255,.35);
+}
+#coreAgentPanel .ca-brand-text h2{margin:0;font-family:'Space Grotesk',sans-serif;font-size:19px;letter-spacing:.2px;font-weight:600;color:#f4f1ff}
+#coreAgentPanel .ca-brand-text .ca-dash{color:#8b7bd8;font-weight:400}
+#coreAgentPanel .ca-brand-text p{margin:2px 0 0;font-size:11.5px;color:#8f8bb8;letter-spacing:.3px}
+#coreAgentPanel .ca-header-actions{display:flex;align-items:center;gap:8px}
+#coreAgentPanel .ca-status{
+  display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;
+  font-size:11.5px;font-weight:600;letter-spacing:.4px;max-width:420px;
+}
+#coreAgentPanel .ca-status i{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+#coreAgentPanel .ca-status--online{color:#8dffd9;border:1px solid rgba(72,235,190,.5);background:rgba(24,120,100,.22);box-shadow:0 0 18px rgba(60,235,190,.18)}
+#coreAgentPanel .ca-status--online i{background:#4cf0bd;box-shadow:0 0 10px #4cf0bd}
+#coreAgentPanel .ca-status--partial{color:#ffe3a6;border:1px solid rgba(240,190,90,.45);background:rgba(120,86,20,.22)}
+#coreAgentPanel .ca-status--partial i{background:#f0c364}
+#coreAgentPanel .ca-status--offline{color:#ffb3c8;border:1px solid rgba(255,110,150,.45);background:rgba(120,26,60,.25)}
+#coreAgentPanel .ca-status--offline i{background:#ff6f96}
+#coreAgentPanel .ca-status--unknown{color:#b9b4dd;border:1px solid rgba(150,140,210,.35);background:rgba(60,54,110,.25)}
+#coreAgentPanel .ca-status--unknown i{background:#8b7fd0}
+#coreAgentPanel .ca-icon{
+  width:34px;height:34px;border-radius:11px;cursor:pointer;color:#cfc7ff;font-size:14px;line-height:1;
+  background:rgba(255,255,255,.05);border:1px solid rgba(150,120,255,.22);
+  display:inline-flex;align-items:center;justify-content:center;transition:.16s;
+}
+#coreAgentPanel .ca-icon:hover{background:rgba(140,105,255,.2);border-color:rgba(170,140,255,.5);box-shadow:0 0 16px rgba(130,90,255,.3)}
+#coreAgentPanel .ca-icon:focus-visible,#coreAgentPanel button:focus-visible,#coreAgentPanel input:focus-visible{outline:2px solid #a884ff;outline-offset:2px}
+#coreAgentPanel .ca-icon--close:hover{background:rgba(255,90,130,.18);border-color:rgba(255,120,150,.5)}
+
+/* ---------- KPI cards ---------- */
+#coreAgentPanel .ca-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#coreAgentPanel .ca-kpi{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:16px;
+  background:linear-gradient(150deg,rgba(30,26,64,.78),rgba(12,10,30,.66));
+  border:1px solid rgba(255,255,255,.07);box-shadow:0 18px 40px rgba(3,2,14,.5),inset 0 1px 0 rgba(255,255,255,.06);
+}
+#coreAgentPanel .ca-kpi-icon{
+  display:grid;place-items:center;width:40px;height:40px;flex:0 0 40px;border-radius:13px;font-size:16px;color:#f3eeff;
+  background:linear-gradient(150deg,rgba(150,100,255,.55),rgba(80,50,180,.4));box-shadow:inset 0 1px 0 rgba(255,255,255,.25);
+}
+#coreAgentPanel .ca-kpi-body{min-width:0;display:flex;flex-direction:column;gap:1px}
+#coreAgentPanel .ca-kpi-body small{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#9a93c4}
+#coreAgentPanel .ca-kpi-body strong{font-family:'Space Grotesk',sans-serif;font-size:22px;line-height:1.1;color:#fbfaff;font-weight:600}
+#coreAgentPanel .ca-kpi-body em{font-style:normal;font-size:10.5px;color:#7d78a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#coreAgentPanel .ca-kpi--violet{border-color:rgba(160,120,255,.3);box-shadow:0 18px 40px rgba(60,20,120,.35),inset 0 1px 0 rgba(255,255,255,.06)}
+#coreAgentPanel .ca-kpi--teal .ca-kpi-icon{background:linear-gradient(150deg,rgba(60,220,180,.5),rgba(20,120,100,.4))}
+#coreAgentPanel .ca-kpi--teal{border-color:rgba(70,220,185,.26)}
+#coreAgentPanel .ca-kpi--blue .ca-kpi-icon{background:linear-gradient(150deg,rgba(80,150,255,.55),rgba(30,70,170,.4))}
+#coreAgentPanel .ca-kpi--blue{border-color:rgba(90,150,255,.26)}
+#coreAgentPanel .ca-kpi--purple .ca-kpi-icon{background:linear-gradient(150deg,rgba(190,110,255,.55),rgba(110,40,180,.4))}
+#coreAgentPanel .ca-kpi--purple{border-color:rgba(190,120,255,.3)}
+
+/* ---------- cards + grid ---------- */
+#coreAgentPanel .ca-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:11px}
+#coreAgentPanel .ca-card{
+  display:flex;flex-direction:column;min-width:0;padding:11px 14px 13px;border-radius:18px;
+  background:linear-gradient(158deg,rgba(26,22,58,.72),rgba(10,9,26,.62));
+  border:1px solid rgba(255,255,255,.07);
+  box-shadow:0 20px 50px rgba(3,2,14,.45),inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+#coreAgentPanel .ca-span-3{grid-column:span 3}
+#coreAgentPanel .ca-span-4{grid-column:span 4}
+#coreAgentPanel .ca-span-5{grid-column:span 5}
+#coreAgentPanel .ca-span-6{grid-column:span 6}
+#coreAgentPanel .ca-span-7{grid-column:span 7}
+#coreAgentPanel .ca-span-8{grid-column:span 8}
+#coreAgentPanel .ca-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;min-height:18px}
+#coreAgentPanel .ca-card-head h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:#cfc8f5}
+#coreAgentPanel .ca-hint{font-size:10px;letter-spacing:.4px;color:#736e99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#coreAgentPanel .ca-live{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;letter-spacing:1px;color:#6ef2c6}
+#coreAgentPanel .ca-live::before{content:"";width:6px;height:6px;border-radius:50%;background:#4cf0bd;box-shadow:0 0 8px #4cf0bd;animation:ca-pulse 2.4s infinite}
+@keyframes ca-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ---------- charts ---------- */
+#coreAgentPanel .ca-chart{position:relative;min-height:132px;display:flex;align-items:center;justify-content:center}
+#coreAgentPanel .ca-chart svg{width:100%;height:auto;max-height:152px;display:block;overflow:visible}
+#coreAgentPanel .ca-chart-empty,#coreAgentPanel .ca-empty{
+  margin:0;font-size:11.5px;color:#75709b;text-align:center;line-height:1.5;padding:18px 8px;
+}
+#coreAgentPanel .ca-axis{fill:#6a6590;font-size:9px;font-family:'DM Sans',sans-serif}
+#coreAgentPanel .ca-bar-label{fill:#8b85b4;font-size:9px;font-family:'DM Sans',sans-serif}
+
+/* ---------- current task ---------- */
+#coreAgentPanel .ca-chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+#coreAgentPanel .ca-chip{
+  border:1px solid rgba(150,120,255,.24);background:rgba(255,255,255,.04);color:#a9a2d0;
+  font-size:9.5px;letter-spacing:.3px;padding:3px 8px;border-radius:999px;cursor:pointer;max-width:84px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+#coreAgentPanel .ca-chip.is-active{background:rgba(150,105,255,.26);border-color:rgba(180,140,255,.6);color:#f0eaff}
+#coreAgentPanel .ca-current{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+#coreAgentPanel .ca-ring{position:relative;width:104px;height:104px;flex:0 0 104px}
+#coreAgentPanel .ca-ring svg{width:104px;height:104px;transform:rotate(-90deg)}
+#coreAgentPanel .ca-ring-track{stroke:rgba(255,255,255,.08)}
+#coreAgentPanel .ca-ring-value{stroke:url(#caRingGrad);stroke-linecap:round;transition:stroke-dasharray .5s ease}
+#coreAgentPanel .ca-ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#coreAgentPanel .ca-ring-text b{font-family:'Space Grotesk',sans-serif;font-size:20px;color:#fbfaff}
+#coreAgentPanel .ca-ring-text small{font-size:9px;letter-spacing:.6px;color:#847ea9;text-transform:uppercase}
+#coreAgentPanel .ca-task-body{flex:1 1 220px;min-width:0}
+#coreAgentPanel .ca-task-goal{margin:0 0 7px;font-size:12px;line-height:1.45;color:#ddd8f7;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+#coreAgentPanel .ca-task-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+#coreAgentPanel .ca-tag{font-size:9.5px;letter-spacing:.4px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:#a9a2d0;text-transform:uppercase}
+#coreAgentPanel .ca-tag--running{color:#8fd8ff;border-color:rgba(90,180,255,.4);background:rgba(30,90,150,.25)}
+#coreAgentPanel .ca-tag--completed{color:#8dffd9;border-color:rgba(72,235,190,.4);background:rgba(24,120,100,.22)}
+#coreAgentPanel .ca-tag--awaiting_approval{color:#ffe3a6;border-color:rgba(240,190,90,.45);background:rgba(120,86,20,.25)}
+#coreAgentPanel .ca-tag--failed{color:#ffb3c8;border-color:rgba(255,110,150,.45);background:rgba(120,26,60,.25)}
+#coreAgentPanel .ca-tag--cancelled{color:#b9b4dd}
+#coreAgentPanel .ca-plan{margin:0;padding:0 0 0 16px;font-size:11px;line-height:1.6;color:#a8a2cd}
+#coreAgentPanel .ca-plan li::marker{color:#7d6bc4}
+#coreAgentPanel .ca-plan li.is-done{color:#8dffd9}
+#coreAgentPanel .ca-plan li.is-failed{color:#ff9dbb}
+#coreAgentPanel .ca-plan li.is-pending{color:#7b76a3}
+#coreAgentPanel .ca-progress{height:6px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:10px}
+#coreAgentPanel .ca-progress span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#6f5bff,#b06bff,#4ce0ff);box-shadow:0 0 12px rgba(150,100,255,.6)}
+#coreAgentPanel .ca-approval{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid rgba(240,190,90,.4);background:rgba(90,66,16,.22)}
+#coreAgentPanel .ca-approval b{display:block;font-size:11px;color:#ffe3a6;margin-bottom:4px}
+#coreAgentPanel .ca-approval p{margin:0 0 6px;font-size:11px;color:#d8c9a0}
+#coreAgentPanel .ca-approval pre{margin:0 0 8px;padding:8px;border-radius:10px;background:rgba(0,0,0,.35);font-size:10px;color:#cfc7ef;max-height:130px;overflow:auto}
+#coreAgentPanel .ca-actions{display:flex;gap:8px;flex-wrap:wrap}
+#coreAgentPanel .ca-btn{
+  border:1px solid rgba(150,120,255,.35);background:rgba(120,85,230,.25);color:#efe9ff;
+  font-size:10.5px;letter-spacing:.5px;padding:7px 12px;border-radius:10px;cursor:pointer;font-weight:600;
+}
+#coreAgentPanel .ca-btn:hover{background:rgba(140,100,255,.4)}
+#coreAgentPanel .ca-btn--approve{border-color:rgba(72,235,190,.5);background:rgba(24,120,100,.3);color:#b7ffe9}
+#coreAgentPanel .ca-btn--reject{border-color:rgba(255,110,150,.45);background:rgba(120,26,60,.3);color:#ffc2d3}
+#coreAgentPanel .ca-btn:disabled{opacity:.55;cursor:wait}
+
+/* ---------- agents ---------- */
+#coreAgentPanel .ca-agent-list{display:flex;flex-direction:column;gap:5px;max-height:148px;overflow:auto}
+#coreAgentPanel .ca-agent-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.035)}
+#coreAgentPanel .ca-agent-row.is-delegated{background:rgba(140,100,255,.14);box-shadow:inset 0 0 0 1px rgba(160,120,255,.25)}
+#coreAgentPanel .ca-agent-name{font-size:11px;color:#d5cff2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#coreAgentPanel .ca-agent-state{display:inline-flex;align-items:center;gap:5px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;flex:0 0 auto}
+#coreAgentPanel .ca-agent-state i{width:6px;height:6px;border-radius:50%}
+#coreAgentPanel .ca-agent-state--connected{color:#6ef2c6}
+#coreAgentPanel .ca-agent-state--connected i{background:#4cf0bd;box-shadow:0 0 7px #4cf0bd}
+#coreAgentPanel .ca-agent-state--partial{color:#ffd58a}
+#coreAgentPanel .ca-agent-state--partial i{background:#f0c364}
+#coreAgentPanel .ca-agent-state--blocked{color:#ff9dbb}
+#coreAgentPanel .ca-agent-state--blocked i{background:#ff6f96}
+#coreAgentPanel .ca-agent-state--idle{color:#8b85b4}
+#coreAgentPanel .ca-agent-state--idle i{background:#6a6590}
+
+/* ---------- health ---------- */
+#coreAgentPanel .ca-health{display:flex;flex-direction:column;gap:7px}
+#coreAgentPanel .ca-health-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;font-size:10.5px;color:#a49ecb}
+#coreAgentPanel .ca-health-row b{font-family:'Space Grotesk',sans-serif;font-size:11px;color:#e9e4ff;font-weight:600;text-align:right}
+#coreAgentPanel .ca-health-bar{grid-column:1/-1;height:4px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+#coreAgentPanel .ca-health-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#4ce0ff,#8f6bff)}
+#coreAgentPanel .ca-health-bar.is-warn span{background:linear-gradient(90deg,#f0c364,#ff9d6b)}
+#coreAgentPanel .ca-health-bar.is-bad span{background:linear-gradient(90deg,#ff6f96,#ff4f7d)}
+
+/* ---------- log ---------- */
+#coreAgentPanel .ca-log{
+  display:flex;flex-direction:column;gap:2px;max-height:132px;overflow:auto;padding-right:4px;
+  font-family:'Space Grotesk',ui-monospace,'Cascadia Mono',monospace;font-size:11px;line-height:1.55;
+}
+#coreAgentPanel .ca-log-row{display:grid;grid-template-columns:56px 1fr 16px;gap:8px;align-items:baseline;padding:2px 4px;border-radius:6px}
+#coreAgentPanel .ca-log-row:hover{background:rgba(255,255,255,.04)}
+#coreAgentPanel .ca-log-seq{color:#5f5a86;font-size:10px}
+#coreAgentPanel .ca-log-text{color:#b8b2dc;word-break:break-word}
+#coreAgentPanel .ca-log-text b{color:#e6e0ff;font-weight:600}
+#coreAgentPanel .ca-log-mark{text-align:right;color:#6ef2c6}
+#coreAgentPanel .ca-log-row.is-failed .ca-log-mark{color:#ff7fa4}
+#coreAgentPanel .ca-log-row.is-pending .ca-log-mark{color:#8b85b4}
+#coreAgentPanel .ca-log-row.is-run .ca-log-text{color:#cfc8f5}
+#coreAgentPanel .ca-log-empty{margin:0;font-size:11.5px;color:#75709b;padding:14px 4px}
+
+/* ---------- tools ---------- */
+#coreAgentPanel .ca-tools{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;max-height:132px;overflow:auto}
+#coreAgentPanel .ca-tool{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:10px;font-size:10px;color:#c6c0e8;
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);
+}
+#coreAgentPanel .ca-tool b{font-family:'Space Grotesk',sans-serif;color:#f0ebff;font-weight:600;font-size:10px}
+#coreAgentPanel .ca-tool span{color:#7d78a6}
+#coreAgentPanel .ca-tool--confirm{border-color:rgba(240,190,90,.35)}
+#coreAgentPanel .ca-tool--confirm b{color:#ffe3a6}
+#coreAgentPanel .ca-tool--write{border-color:rgba(255,110,150,.3)}
+
+/* ---------- modes ---------- */
+#coreAgentPanel .ca-modes{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 16px;border-radius:18px;
+  background:linear-gradient(150deg,rgba(26,22,58,.6),rgba(10,9,26,.5));
+  border:1px solid rgba(255,255,255,.06);
+}
+#coreAgentPanel .ca-modes h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:12.5px;letter-spacing:.9px;text-transform:uppercase;color:#cfc8f5;flex:0 0 auto}
+#coreAgentPanel .ca-mode-list{display:flex;gap:8px;flex-wrap:wrap}
+#coreAgentPanel .ca-mode{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;cursor:not-allowed;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);color:#8b85b4;text-align:left;
+}
+#coreAgentPanel .ca-mode.is-active{background:linear-gradient(140deg,rgba(120,80,230,.32),rgba(60,40,140,.25));border-color:rgba(170,130,255,.5);color:#efe9ff;cursor:default}
+#coreAgentPanel .ca-radio{width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(180,165,230,.55);flex:0 0 12px;position:relative}
+#coreAgentPanel .ca-mode.is-active .ca-radio{border-color:#b58bff;box-shadow:0 0 10px rgba(170,120,255,.7)}
+#coreAgentPanel .ca-mode.is-active .ca-radio::after{content:"";position:absolute;inset:2.5px;border-radius:50%;background:#b58bff}
+#coreAgentPanel .ca-mode-text{display:flex;flex-direction:column;line-height:1.25}
+#coreAgentPanel .ca-mode-text b{font-size:10.5px;font-weight:600;letter-spacing:.3px}
+#coreAgentPanel .ca-mode-text small{font-size:9px;color:#7d78a6}
+#coreAgentPanel .ca-mode.is-active .ca-mode-text small{color:#a99fd6}
+#coreAgentPanel .ca-mode-note{margin:0;font-size:10.5px;color:#7d78a6;flex:1 1 260px;min-width:180px;line-height:1.45}
+
+/* ---------- mission bar ---------- */
+#coreAgentPanel .ca-mission{
+  display:flex;align-items:center;gap:10px;padding:7px 10px 7px 16px;border-radius:999px;margin-top:auto;
+  background:linear-gradient(140deg,rgba(90,55,180,.28),rgba(20,16,48,.75));
+  border:1px solid rgba(160,120,255,.4);
+  box-shadow:0 0 34px rgba(120,70,255,.22),inset 0 1px 0 rgba(255,255,255,.07);
+}
+#coreAgentPanel .ca-mission-mark{color:#c3a4ff;font-size:15px;flex:0 0 auto}
+#coreAgentPanel .ca-mission input{
+  flex:1 1 auto;min-width:0;background:transparent;border:0;color:#f2eeff;font-size:13px;font-family:'DM Sans',sans-serif;padding:6px 0;
+}
+#coreAgentPanel .ca-mission input::placeholder{color:#8a83b5}
+#coreAgentPanel .ca-mission input:focus{outline:none}
+#coreAgentPanel .ca-mission-btn{
+  width:36px;height:36px;flex:0 0 36px;border-radius:50%;cursor:pointer;color:#d9cfff;
+  background:rgba(255,255,255,.06);border:1px solid rgba(160,140,255,.3);
+  display:grid;place-items:center;
+}
+#coreAgentPanel .ca-mission-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+#coreAgentPanel .ca-mission-btn.is-listening{color:#8dffd9;border-color:rgba(72,235,190,.6);box-shadow:0 0 16px rgba(70,235,190,.35)}
+#coreAgentPanel .ca-mission-btn:disabled{opacity:.4;cursor:not-allowed}
+#coreAgentPanel .ca-send{
+  width:40px;height:40px;flex:0 0 40px;border-radius:50%;cursor:pointer;color:#fff;border:0;
+  background:linear-gradient(145deg,#a06bff,#6c3ae0);box-shadow:0 0 22px rgba(150,90,255,.6),inset 0 1px 0 rgba(255,255,255,.4);
+  display:grid;place-items:center;
+}
+#coreAgentPanel .ca-send svg{width:17px;height:17px;fill:currentColor;stroke:none}
+#coreAgentPanel .ca-send:disabled{opacity:.55;cursor:wait;box-shadow:none}
+#coreAgentPanel .ca-send:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 0 28px rgba(170,110,255,.8),inset 0 1px 0 rgba(255,255,255,.4)}
+#coreAgentPanel .ca-footnote{margin:-3px 0 0;text-align:center;font-size:9.5px;color:#6e6994;line-height:1.45}
+
+/* ---------- error ---------- */
+#coreAgentPanel .ca-error{margin:0;padding:12px;border-radius:12px;background:rgba(120,26,60,.22);border:1px solid rgba(255,110,150,.35);color:#ffc2d3;font-size:11px;line-height:1.5}
+
+/* ---------- responsive ---------- */
+@media(max-width:1080px){
+  #coreAgentPanel .ca-span-3,#coreAgentPanel .ca-span-4,#coreAgentPanel .ca-span-5,
+  #coreAgentPanel .ca-span-6,#coreAgentPanel .ca-span-7,#coreAgentPanel .ca-span-8{grid-column:span 12}
+  #coreAgentPanel .ca-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  html body #coreAgentPanel.core-agent-panel:not(.hidden){inset:68px 6px 6px!important;border-radius:18px!important}
+  #coreAgentPanel .ca-shell{padding:12px 12px 16px;gap:11px}
+  #coreAgentPanel .ca-kpis{grid-template-columns:1fr}
+  #coreAgentPanel .ca-brand-text h2{font-size:16px}
+  #coreAgentPanel .ca-status{max-width:210px;font-size:10px;padding:6px 10px}
+  #coreAgentPanel .ca-modes{padding:10px 12px}
+  #coreAgentPanel .ca-mode-note{flex-basis:100%}
+  #coreAgentPanel .ca-mission{border-radius:18px;padding:8px 10px}
+  #coreAgentPanel .ca-ring{width:84px;height:84px;flex-basis:84px}
+  #coreAgentPanel .ca-ring svg{width:84px;height:84px}
+}

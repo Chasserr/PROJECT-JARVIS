@@ -44,59 +44,10 @@ async function coreApi(path,body){
  if(!response.ok&&!(response.status===409&&data.status==="awaiting_approval"))throw Error(data.error||data.detail||("Core request failed: "+response.status));
  return data;
 }
-function coreText(tag,value,cls){
- const el=document.createElement(tag);if(cls)el.className=cls;el.textContent=String(value??"");return el;
-}
-function renderCoreRun(run){
- const card=coreText("article","", "core-run-card");
- const head=coreText("div",run.status.replaceAll("_"," ").toUpperCase(),"core-run-head");
- const goal=coreText("p",run.goal,"core-run-goal");card.append(head,goal);
- if(run.plan?.summary)card.append(coreText("p",run.plan.summary,"vision-summary"));
- if(run.plan?.steps?.length){
-  const list=document.createElement("ol");list.className="core-step-list";
-  run.plan.steps.forEach(step=>{const li=coreText("li",step.tool+(step.rationale?"     "+step.rationale:""));list.append(li)});card.append(list);
- }
- if(run.steps?.length){
-  const done=coreText("div","Execution results","core-run-label");card.append(done);
-  run.steps.forEach(step=>{const line=coreText("div",(step.ok?"    ":"    ")+step.tool+(step.error?": "+step.error:""),"core-step-result");card.append(line)});
- }
- if(run.status==="awaiting_approval"&&run.approval){
-  const approval=coreText("div","","core-approval");
-  approval.append(coreText("b","Permission required: "+run.approval.permission));
-  approval.append(coreText("p","JARVIS wants to run: "+run.approval.tool));
-  approval.append(coreText("pre",JSON.stringify(run.approval.args,null,2)));
-  const actions=coreText("div","","core-approval-actions");
-  const yes=coreText("button","APPROVE THIS STEP","small-btn");yes.type="button";yes.onclick=async()=>{if(!confirm("Approve this exact JARVIS Core tool step?"))return;yes.disabled=true;try{await coreApi("/api/core/runs/"+run.run_id+"/approve",{});await refreshCoreRuns()}catch(e){alert(e.message);yes.disabled=false}};
-  const no=coreText("button","REJECT RUN","text-btn");no.type="button";no.onclick=async()=>{if(!confirm("Reject this step and stop the run?"))return;no.disabled=true;try{await coreApi("/api/core/runs/"+run.run_id+"/reject",{});await refreshCoreRuns()}catch(e){alert(e.message);no.disabled=false}};
-  actions.append(yes,no);approval.append(actions);card.append(approval);
- }else if(run.status==="running"){
-  const cancel=coreText("button","CANCEL RUN","text-btn");cancel.type="button";cancel.onclick=async()=>{if(!confirm("Cancel this JARVIS Core run?"))return;await coreApi("/api/core/runs/"+run.run_id+"/cancel",{});refreshCoreRuns()};card.append(cancel);
- }
- if(run.answer)card.append(coreText("p",run.answer,"core-run-answer"));
- if(run.error)card.append(coreText("p",run.error,"core-run-error"));
- return card;
-}
-async function refreshCoreRuns(){
- const list=$("#coreRunList"),status=$("#coreAgentStatus");status.textContent="Checking local Core   ";
- try{
-  const [data,tools]=await Promise.all([coreApi("/api/core/runs"),coreApi("/api/core/tools")]);
-  list.replaceChildren();
-  (data.runs||[]).forEach(run=>list.append(renderCoreRun(run)));
-  if(!(data.runs||[]).length)list.append(coreText("div","No agent runs yet. Submit a goal above to begin.","vision-summary"));
-  status.textContent="CORE ONLINE    "+(tools.length||0)+" registered tools    "+(data.runs||[]).length+" recent runs";
- }catch(e){status.textContent="CORE CONNECTION ISSUE";list.replaceChildren(coreText("div",e.message,"core-run-error"))}
-}
-$("#coreAgentBtn").onclick=()=>{$("#coreAgentPanel").classList.remove("hidden");$("#computerPanel").classList.add("hidden");$("#settings").classList.add("hidden");refreshCoreRuns()};
-$("#closeCoreAgent").onclick=()=>$("#coreAgentPanel").classList.add("hidden");
-$("#refreshCoreRuns").onclick=refreshCoreRuns;
+/* The Core Agent panel is rendered by core-agent.js, which owns its own
+   data loading and keeps this file focused on the rest of the shell. */
+$("#coreAgentBtn").onclick=()=>{$("#coreAgentPanel").classList.remove("hidden");$("#computerPanel").classList.add("hidden");$("#settings").classList.add("hidden");window.refreshCoreRuns?.()};
 $("#computerBtn").addEventListener("click",()=>$("#coreAgentPanel").classList.add("hidden"));
-$("#coreRunForm").onsubmit=async e=>{
- e.preventDefault();const input=$("#coreGoal"),goal=input.value.trim();if(!goal)return;
- const button=$("#coreRunSubmit");button.disabled=true;button.textContent="PLANNING   ";
- try{const run=await coreApi("/api/core/runs",{goal});input.value="";await refreshCoreRuns();if(run.status==="awaiting_approval")$("#coreAgentStatus").textContent="Approval required    review the pending step below";else if(run.status==="completed")$("#coreAgentStatus").textContent="Run completed";else $("#coreAgentStatus").textContent="Run status: "+run.status}
- catch(err){$("#coreAgentStatus").textContent=err.message;await refreshCoreRuns()}
- finally{button.disabled=false;button.textContent="START"}
-};
 async function loadSpotifySetup(){try{const r=await fetch("/api/spotify/status"),d=await r.json();$("#spotifySetupState").textContent=d.configured?"Secret saved locally":"Client ID ready   secret needed";$("#spotifySetupMessage").textContent=d.configured?"Spotify secret is saved on this PC.":"Client ID is configured. Enter the Client Secret from Spotify Developer Dashboard."; }catch(e){$("#spotifySetupMessage").textContent="Could not read Spotify setup status.";}}
 $("#saveSpotifySecret").onclick=async()=>{const input=$("#spotifyClientSecret"),secret=input.value.trim(),button=$("#saveSpotifySecret"),msg=$("#spotifySetupMessage");if(!secret){msg.textContent="Paste your Spotify Client Secret first.";return}button.disabled=true;button.textContent="SAVING ";try{const r=await fetch("/api/spotify/credentials",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_secret:secret})}),d=await r.json();if(!r.ok)throw Error(d.error||"Could not save Spotify credentials.");input.value="";msg.textContent=d.message;$("#spotifySetupState").textContent="Secret saved locally";}catch(e){msg.textContent=e.message}finally{button.disabled=false;button.textContent="SAVE SECRET LOCALLY"}};
 health();loadMemory();loadSpotifySetup();if(SR)startWake();else add("assistant","Voice recognition is unavailable in this browser. Use Microsoft Edge.");setInterval(health,15000);
