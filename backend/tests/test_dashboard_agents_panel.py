@@ -71,6 +71,7 @@ RAIL_LABELS = [
     "Chat",
     "Agents",
     "Workflows",
+    "Visuals",
     "PC Control",
     "Files",
     "Memory",
