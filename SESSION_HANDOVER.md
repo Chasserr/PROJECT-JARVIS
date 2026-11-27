@@ -318,3 +318,24 @@ different images and require three different correct answers.
 - Next: Twilio credentials + public HTTPS URL to exercise a real call; then the
   authenticated PC bridge (Phase 2), PDF output (Phase 3), generation backends
   (Phase 4), local voice in the core (Phase 5).
+
+## 2026-11-27 — Core Agent redesign, iPhone interface, reports tests
+
+- Core Agent panel re-skinned in `web/core-agent.{css,js}` with real KPIs, two
+  charts, current-task progress, roster status, health, log and tool usage read
+  from the existing Core endpoints. `web/index.html` changed only inside
+  `#coreAgentPanel`; the old renderer was removed from `web/app.js`.
+- iPhone surface rebuilt as five views (Chat, Agents, PC, Files, Line) in
+  `web/mobile.{html,css,js}`, reusing the existing endpoints. `app.py` gained
+  read-only `/api/reports`, `/api/reports/<name>` (confined to the reports
+  directory), `/api/core/telephony` and a `/mobile` alias, all behind the
+  existing host/origin/Tailscale checks.
+- `docs/mobile-access.md` documents iPhone install, the remote security model
+  and the Twilio variables/webhook plus paid parts.
+- Tests: `tests/test_dashboard_core_agent.py` (5), `tests/test_mobile_app.py`
+  (5), `tests/test_reports_endpoint.py` (15, including six traversal variants,
+  an absolute-path attempt, a missing file, a query string and the host check).
+  Full suite: **227 passed**. Ruff unchanged: the pre-existing `SIM112`.
+- Live: dashboard and Core restarted so the new routes are served; `/mobile`
+  200, `/api/reports` real list, `/api/core/telephony` reports unconfigured with
+  the missing variable. No phone call has been placed.

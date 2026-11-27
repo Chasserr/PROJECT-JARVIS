@@ -318,3 +318,51 @@ Twilio account, a number, a public HTTPS URL and the caller's number in
 `JARVIS_TELEPHONY_ALLOWED_CALLERS`. Phase 2 (authenticated PC bridge), Phase 3
 (PDF/binary files), Phase 4 (image/video) and Phase 5 (local voice in the core)
 are still open in the plan.
+
+## 2026-11-27 — Core Agent interface redesign
+
+The Core Agent panel was re-skinned to the purple glass reference without
+touching the rest of the shell, the engine or the APIs:
+
+- `web/core-agent.{css,js}` (new): scoped styles and a renderer that reads
+  `/api/core/runs`, `/api/core/agents`, `/api/core/tools` and `/api/health`.
+  KPIs, both charts, current-task progress, delegated agent status, system
+  health, the execution log and tool usage are all derived from those responses;
+  empty, loading and error states are explicit rather than zero-filled.
+- `web/index.html`: only the `#coreAgentPanel` markup was replaced, plus the two
+  includes. `web/app.js`: the old renderer and bindings were removed and
+  `coreApi` kept for Workflow Studio.
+- `backend/tests/test_dashboard_core_agent.py`: 5 Playwright tests covering KPI
+  arithmetic, empty and outage states, the approval POST, and shell isolation.
+
+Modes are shown honestly: Supervised is the enforced policy, Autonomous and
+Manual are disabled with a note because Core has no such endpoints. No CPU/RAM
+GPU gauges were invented — Core exposes no such metrics.
+
+## 2026-11-27 — iPhone interface, remote access and the phone line
+
+The mission asks for two ways in from an iPhone. The project already had both
+foundations — a mobile page and a Tailscale-authenticated remote path — so this
+pass extended them instead of adding a second assistant:
+
+- `web/mobile.html|css|js`: rebuilt as a five-view iPhone surface (Chat, Agents,
+  PC, Files, Line) that reuses the existing endpoints. Chat and the PC
+  open/close confirmation flow are preserved; new are real run monitoring with
+  approve/reject/cancel, specialist roster status, delegated tasks submitted to
+  the Core Agent, window inspection, typing, local file search, report listing
+  and download, spoken replies through Kokoro with a system-voice fallback, and
+  a phone-line status view that names the missing configuration.
+- `app.py`: three read-only GET routes — `/api/reports` (list), 
+  `/api/reports/<name>` (download, confined to the reports directory), 
+  `/api/core/telephony` (proxy to Core), plus a `/mobile` alias. All of them sit
+  under the existing host/origin/Tailscale-identity checks.
+- `docs/mobile-access.md`: how to open and install the page, the remote security
+  model (loopback bind + Tailscale identity header + origin checks), the exact
+  Twilio variables and webhook, and the paid parts.
+
+Verified on this machine: `/mobile` answers 200, `/api/reports` returns the real
+(empty) report list, `/api/core/telephony` returns
+`{"configured": false, "provider": "none", "missing": ["JARVIS_TELEPHONY_PROVIDER"]}`,
+and the live iPhone viewport renders 6 real runs and 10 specialists with zero
+horizontal overflow. `tests/test_mobile_app.py` adds 5 Playwright tests; the full
+suite is 212 passing.
