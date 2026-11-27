@@ -109,6 +109,16 @@ class Settings(BaseSettings):
     scanner_timeout_s: float = Field(default=180.0, gt=0, le=600)
     reports_dir: Path | None = None
 
+    # --- Desktop control and creative generation --------------------------
+    # Both talk to a local runtime over loopback: the dashboard PC CONTROL
+    # service and the ComfyUI install. Neither is re-implemented in the core.
+    pc_runtime_url: str = "http://127.0.0.1:8765"
+    comfyui_url: str = "http://127.0.0.1:8188"
+    comfyui_checkpoint: str = "sd_xl_base_1.0.safetensors"
+    comfyui_timeout_s: float = Field(default=240.0, gt=0, le=900)
+    creative_steps: int = Field(default=24, ge=4, le=60)
+    ffmpeg_path: str = ""
+
     # --- Telephony --------------------------------------------------------
     # Provider-independent voice gateway. Every call route stays closed until a
     # provider, its credentials, a public HTTPS base URL and at least one

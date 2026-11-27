@@ -227,8 +227,10 @@ def test_status_follows_the_verified_capabilities(settings: Settings) -> None:
 def test_unimplemented_capabilities_explain_themselves() -> None:
     from jarvis.capabilities import UNIMPLEMENTED
 
-    for key in ("desktop_control", "creative_gen"):
-        assert UNIMPLEMENTED[key].strip()
+    # Desktop control and creative generation are implemented now (they call the
+    # local PC runtime and ComfyUI), so nothing should claim they are missing.
+    assert "desktop_control" not in UNIMPLEMENTED
+    assert "creative_gen" not in UNIMPLEMENTED
     # These are now implemented and probed at runtime, so they must not be
     # advertised as permanently missing.
     for key in ("code_edit", "shell", "browser_automation", "scanner"):

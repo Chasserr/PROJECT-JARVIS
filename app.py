@@ -130,55 +130,18 @@ def close_app(query):
     q=str(query or "").strip().lower()
     if not q or len(q)>100:
         raise ValueError("Tell me which application to close.")
-    from pywinauto import Desktop
-    desktop=Desktop(backend="uia")
-    windows=desktop.windows(visible_only=True, enabled_only=True)
-    matches=[]
-    for win in windows:
-        try:
-            title=win.window_text().strip()
-            if title and q in title.lower():
-                matches.append((title,win))
-        except Exception:
-            pass
-    # Prefer the actual matching top-level window. Never terminate a shared
-    # host process such as ApplicationFrameHost.exe for a single app request.
-    unique={}
-    for title,win in matches:
-        try: unique[win.handle]=(title,win)
-        except Exception: pass
-    matches=list(unique.values())
+    matches=[(hwnd,title) for hwnd,title in visible_windows() if q in title.lower()]
     if not matches:
         raise ValueError("I couldn't find a visible application window matching that name.")
-    if len(matches)>1:
-        titles=sorted(set(title for title,_ in matches))
-        if len(titles)>1:
-            raise ValueError("That matches multiple windows: "+", ".join(titles[:8])+". Be more specific.")
-        # Same app may expose several windows; close only its titled windows.
-    closed=[]
-    for title,win in matches:
-        try:
-            win.close()
-            closed.append(title)
-        except Exception:
-            try:
-                import win32gui, win32con
-                win32gui.PostMessage(win.handle, win32con.WM_CLOSE, 0, 0)
-                closed.append(title)
-            except Exception:
-                pass
-    time.sleep(0.7)
-    remaining=[]
-    for win in desktop.windows(visible_only=True, enabled_only=True):
-        try:
-            title=win.window_text().strip()
-            if title and q in title.lower():
-                remaining.append(title)
-        except Exception:
-            pass
-    if remaining:
-        return sorted(set(title for title,_ in matches))[0],0
-    return sorted(set(title for title,_ in matches))[0],len(closed)
+    titles=sorted({title for _,title in matches})
+    if len(titles)>1:
+        raise ValueError("That matches multiple windows: "+", ".join(titles[:8])+". Be more specific.")
+    import ctypes
+    user32=ctypes.windll.user32
+    closed=0
+    for hwnd,_title in matches:
+        if user32.PostMessageW(hwnd,0x0010,0,0): closed+=1
+    return matches[0][1],closed
 
 def search_files(query,folder):
     q=str(query or "").strip().lower()
@@ -205,19 +168,98 @@ def make_folder(name,folder):
     return str(target)
 
 
-def computer_status():
-    import pyautogui, psutil
-    active=""
+def foreground_title():
+    """Read the foreground window title without assuming pywin32 is installed."""
+    try:
+        import ctypes
+        hwnd=ctypes.windll.user32.GetForegroundWindow()
+        if hwnd:
+            length=ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            buffer=ctypes.create_unicode_buffer(length+1)
+            ctypes.windll.user32.GetWindowTextW(hwnd,buffer,length+1)
+            if buffer.value: return buffer.value[:240]
+    except Exception: pass
     try:
         import win32gui
         hwnd=win32gui.GetForegroundWindow()
-        active=win32gui.GetWindowText(hwnd)[:240] if hwnd else ""
-    except Exception:
-        try:
-            from pywinauto import Desktop
-            win=Desktop(backend="uia").get_active()
-            active=win.window_text()[:240] if win else ""
-        except Exception: pass
+        if hwnd: return win32gui.GetWindowText(hwnd)[:240]
+    except Exception: pass
+    try:
+        from pywinauto import Desktop
+        for win in Desktop(backend="uia").windows(visible_only=True):
+            try:
+                if win.is_active(): return win.window_text()[:240]
+            except Exception: continue
+    except Exception: pass
+    return ""
+
+def clear_failsafe_corner():
+    """pyautogui refuses to act while the pointer rests in a screen corner.
+
+    The fail-safe stays enabled: this only nudges the pointer to the centre when
+    it is parked in a corner, so an approved action is not blocked by where the
+    user happened to leave the mouse.
+    """
+    try:
+        import ctypes, pyautogui
+        x,y=pyautogui.position(); width,height=pyautogui.size()
+        if x<=2 or y<=2 or x>=width-3 or y>=height-3:
+            ctypes.windll.user32.SetCursorPos(int(width/2),int(height/2)); return True
+    except Exception: pass
+    return False
+
+def visible_windows():
+    """Top-level windows on this desktop as (hwnd, title). Millisecond call."""
+    import ctypes
+    from ctypes import wintypes
+    user32=ctypes.windll.user32
+    found=[]
+    callback_type=ctypes.WINFUNCTYPE(wintypes.BOOL,wintypes.HWND,wintypes.LPARAM)
+    def callback(hwnd,_):
+        if not user32.IsWindowVisible(hwnd): return True
+        length=user32.GetWindowTextLengthW(hwnd)
+        if length:
+            buffer=ctypes.create_unicode_buffer(length+1)
+            user32.GetWindowTextW(hwnd,buffer,length+1)
+            title=buffer.value.strip()
+            if title: found.append((int(hwnd),title[:240]))
+        return True
+    user32.EnumWindows(callback_type(callback),0)
+    return found
+
+def input_status():
+    """Can this runtime actually drive the signed-in desktop right now?"""
+    import ctypes
+    class Point(ctypes.Structure):
+        _fields_=[("x",ctypes.c_long),("y",ctypes.c_long)]
+    point=Point()
+    ctypes.windll.user32.GetCursorPos(ctypes.byref(point))
+    foreground=foreground_title()
+    return {"attached":bool(foreground),"foreground":foreground,
+            "cursor":{"x":point.x,"y":point.y},"windows":len(visible_windows())}
+
+def focus_window(query):
+    """Bring one visible window to the front so keyboard input has a known target."""
+    q=str(query or "").strip().lower()
+    if not q or len(q)>200: raise ValueError("Tell me which window to focus.")
+    matches=[(hwnd,title) for hwnd,title in visible_windows() if q in title.lower()]
+    if not matches: raise ValueError("No visible window title contains \""+query+"\" on this desktop.")
+    hwnd,title=matches[0]
+    import ctypes
+    user32=ctypes.windll.user32
+    user32.ShowWindow(hwnd,9)
+    focused=bool(user32.SetForegroundWindow(hwnd))
+    if not focused:
+        # Windows blocks background apps from stealing focus; a brief ALT press lifts it.
+        user32.keybd_event(0x12,0,0,0); user32.keybd_event(0x12,0,2,0)
+        focused=bool(user32.SetForegroundWindow(hwnd))
+    if not focused:
+        raise RuntimeError("Windows refused to bring that window to the front.")
+    return {"ok":True,"window":title}
+
+def computer_status():
+    import pyautogui, psutil
+    active=foreground_title()
     running=[]
     for proc in psutil.process_iter(["name","pid","memory_info"]):
         try:
@@ -230,8 +272,16 @@ def computer_status():
             "processes":sorted(running,key=lambda x:x["memory_mb"],reverse=True)[:35]}
 
 def computer_action(data):
-    import pyautogui, pyperclip
+    import pyautogui
+    status=input_status()
+    if not status["attached"]:
+        raise RuntimeError(
+            "The interactive desktop is not attached to this JARVIS runtime (no foreground "
+            "window), so mouse and keyboard input would land nowhere. Start JARVIS from your "
+            "own signed-in desktop session and unlock the screen, then retry."
+        )
     pyautogui.FAILSAFE=True
+    clear_failsafe_corner()
     action=data.get("action")
     width,height=pyautogui.size()
     def point():
@@ -259,7 +309,11 @@ def computer_action(data):
     if action=="type":
         value=data.get("text","")
         if not isinstance(value,str) or len(value)>3000: raise ValueError("Text must be 3000 characters or fewer.")
-        pyperclip.copy(value); pyautogui.hotkey("ctrl","v")
+        if value.isascii():
+            pyautogui.write(value,interval=.01)
+        else:
+            import pyperclip
+            pyperclip.copy(value); pyautogui.hotkey("ctrl","v")
         return {"ok":True,"action":"type","characters":len(value)}
     if action=="press":
         key=data.get("key","")
@@ -305,12 +359,73 @@ def browse_path(raw):
         except OSError: pass
     return {"path":str(target),"parent":str(target.parent) if target.parent!=target else None,"items":entries}
 
+def default_app_for(path):
+    """The executable Windows opens this file type with, or "" when it has none."""
+    if os.name!="nt" or not path.suffix: return ""
+    import ctypes
+    from ctypes import wintypes
+    try:
+        shlwapi=ctypes.WinDLL("shlwapi")
+        query=shlwapi.AssocQueryStringW
+        query.argtypes=(wintypes.DWORD,wintypes.DWORD,wintypes.LPCWSTR,wintypes.LPCWSTR,
+                        wintypes.LPWSTR,ctypes.POINTER(wintypes.DWORD))
+        query.restype=ctypes.c_long
+        size=wintypes.DWORD(1024); buf=ctypes.create_unicode_buffer(1024)
+        # ASSOCF_NONE, ASSOCSTR_EXECUTABLE; a non-zero HRESULT means no association.
+        hr=query(0,2,path.suffix,None,buf,ctypes.byref(size))
+    except (OSError,AttributeError): return ""
+    return "" if hr!=0 else buf.value
+
+def open_in_default_app(path):
+    """Open a path with its default app, and never claim success if nothing opened."""
+    import psutil
+    kind=path.suffix or "extensionless"
+    exe=""
+    if os.name=="nt" and path.is_file():
+        exe=default_app_for(path)
+        if not exe or Path(exe).name.lower()=="openwith.exe":
+            raise ValueError(f'Windows has no default app for {kind} files, so opening "{path.name}" would only show the "Pick an app" prompt. Set a default app for {kind} files in Windows settings, then try again.')
+    exe_name=Path(exe).name.lower() if exe else ""
+    def exe_pids():
+        found=set()
+        for proc in psutil.process_iter(["name"]):
+            try:
+                if exe_name and (proc.info["name"] or "").lower()==exe_name: found.add(proc.pid)
+            except (psutil.NoSuchProcess,psutil.AccessDenied): pass
+        return found
+    def picker_pids():
+        found=set()
+        for proc in psutil.process_iter(["name"]):
+            try:
+                if (proc.info["name"] or "").lower()=="openwith.exe": found.add(proc.pid)
+            except (psutil.NoSuchProcess,psutil.AccessDenied): pass
+        return found
+    picker_message=f'Windows has no working default app for {kind} files, so it only offered the "Pick an app" prompt instead of opening "{path.name}". Set a default app for {kind} files in Windows settings, then try again.'
+    before_windows={hwnd for hwnd,_ in visible_windows()}
+    before_pids=exe_pids(); before_pickers=picker_pids()
+    os.startfile(str(path))
+    stem=path.stem.lower()
+    deadline=time.time()+6
+    while time.time()<deadline:
+        time.sleep(0.3)
+        new_pickers=picker_pids()-before_pickers
+        if new_pickers:
+            for pid in new_pickers:
+                try: psutil.Process(pid).kill()
+                except (psutil.NoSuchProcess,psutil.AccessDenied): pass
+            raise ValueError(picker_message)
+        windows=visible_windows()
+        if stem and any(stem in title.lower() for _,title in windows): return
+        if any(hwnd not in before_windows for hwnd,_ in windows): return
+        if exe_name and exe_pids()-before_pids: return
+    raise ValueError(f'Windows did not open "{path.name}": no window or process started for it. The default app for {kind} files is probably missing or broken, so set one in Windows settings ("Open with"), then try again.')
+
 def manage_file(data):
     action=data.get("action")
     source=Path(str(data.get("path",""))).expanduser().resolve()
     if not source.exists(): raise FileNotFoundError("The selected file or folder does not exist.")
     if action=="open":
-        os.startfile(str(source)); return {"ok":True,"message":"Opened "+source.name}
+        open_in_default_app(source); return {"ok":True,"message":"Opened "+source.name}
     if action=="rename":
         name=data.get("name","")
         if not isinstance(name,str) or not name.strip() or name in {".",".."} or any(c in name for c in '\\\\/:*?"<>|'):
@@ -731,6 +846,9 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path=="/api/computer/inspect":
             try: return self.send_json(200,inspect_ui(self.headers.get("X-Jarvis-Window","")))
             except Exception as e: return self.send_json(503,{"error":"UI inspection unavailable: "+str(e)})
+        if self.path=="/api/computer/input-status":
+            try: return self.send_json(200,input_status())
+            except Exception as e: return self.send_json(503,{"error":"Input status unavailable: "+str(e)})
         if self.path=="/api/computer/status":
             try: return self.send_json(200,computer_status())
             except Exception as e: return self.send_json(503,{"error":"Computer status unavailable: "+str(e)})
@@ -937,6 +1055,10 @@ class Handler(SimpleHTTPRequestHandler):
             try: return self.send_json(200,ui_click_control(data.get("window",""),data.get("control","")))
             except ValueError as e: return self.send_json(400,{"error":str(e)})
             except Exception as e: return self.send_json(503,{"error":"UI action failed: "+str(e)})
+        if self.path=="/api/computer/focus":
+            try: return self.send_json(200,focus_window(data.get("window","")))
+            except ValueError as e: return self.send_json(404,{"error":str(e)})
+            except Exception as e: return self.send_json(503,{"error":"Could not focus that window: "+str(e)})
         if self.path=="/api/computer/open-url":
             try: return self.send_json(200,open_website(data.get("url","")))
             except ValueError as e: return self.send_json(400,{"error":str(e)})

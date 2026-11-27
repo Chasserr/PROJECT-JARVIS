@@ -163,6 +163,7 @@ def register_agent_tools(registry: ToolRegistry) -> None:
                 "required": ["role", "task"],
                 "additionalProperties": False,
             },
+            timeout_s=300.0,
             tags=["agents", "delegation"],
         ),
         _delegate,

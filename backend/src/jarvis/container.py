@@ -29,6 +29,8 @@ from .telephony import VoiceGateway, register_telephony_tool
 from .tools.actions import register_action_tools
 from .tools.agent_tools import register_agent_tools
 from .tools.builtin import build_builtin_registry
+from .tools.creative import register_creative_tools
+from .tools.desktop import register_desktop_tools
 from .tools.execution import register_execution_tools
 from .tools.registry import ToolRegistry
 from .tools.scanner import register_scanner_tool
@@ -92,6 +94,8 @@ def build_container(
     policy = PermissionPolicy(settings.tool_permissions)
     registry = build_builtin_registry(policy=policy, audit=audit, events=events, settings=settings)
     register_vision_tool(registry)
+    register_desktop_tools(registry)
+    register_creative_tools(registry)
     register_action_tools(registry)
     register_execution_tools(registry)
     register_scanner_tool(registry)

@@ -194,24 +194,44 @@ ROSTER: tuple[AgentRole, ...] = (
     AgentRole(
         id="desktop",
         name="Desktop Agent",
-        description="Reports Windows host state for approved desktop operations.",
-        tools=("system.info", "system.metrics", "vision.analyze"),
+        description="Operates this Windows PC: windows, mouse, keyboard, applications and files.",
+        tools=(
+            "system.info",
+            "system.metrics",
+            "vision.analyze",
+            "desktop.status",
+            "desktop.windows",
+            "desktop.inspect",
+            "desktop.screenshot",
+            "desktop.focus",
+            "desktop.action",
+            "desktop.open_app",
+            "desktop.close_app",
+            "desktop.files",
+        ),
         persona=(
-            "You are a desktop assistant. Report host state accurately. You cannot click, "
-            "type, or launch applications from this role; say so if asked. "
+            "You are a desktop operator. Inspect before you act: call desktop.status or "
+            "desktop.windows first, and desktop.inspect when a target is a specific "
+            "control. Use desktop.action for mouse and keyboard, desktop.open_app to "
+            "launch, desktop.files for approved file work. Every side effect pauses for "
+            "the user's approval, so never assume one ran. Report exactly what a tool "
+            "result showed, including the screen coordinates you used. "
             + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over read-only system.info/system.metrics",
-        capability="partial",
+        backend=(
+            "Role-scoped AgentLoop run over desktop.* tools that drive the local PC "
+            "CONTROL runtime (pyautogui, pywinauto, Start-menu catalogue, file operations)"
+        ),
         notes=(
-            "Real mouse/keyboard control lives in the legacy app.py PC CONTROL runtime and "
-            "is not exposed to the core, by design."
+            "Approval-gated: desktop.action, desktop.open_app, desktop.close_app and "
+            "desktop.files all pause; the runtime keeps its own allowlists for keys, "
+            "shortcuts, folders and file operations."
         ),
     ),
     AgentRole(
         id="creative",
         name="Creative Agent",
-        description="Gathers references and drafts creative briefs and copy.",
+        description="Creates and edits images and video, and writes the briefs behind them.",
         tools=(
             "web.search",
             "web.read",
@@ -219,15 +239,26 @@ ROSTER: tuple[AgentRole, ...] = (
             "vision.analyze",
             "notes.create",
             "report.generate",
+            "image.generate",
+            "image.edit",
+            "video.create",
+            "video.edit",
         ),
         persona=(
-            "You are a creative director. Produce concrete briefs and copy, and cite "
-            "references you actually retrieved. Never claim to have generated an image or "
-            "video. " + _COMMON_RULES
+            "You are a creative director who can actually render. Write a concrete, "
+            "specific prompt, call image.generate or image.edit for stills and "
+            "video.create or video.edit for clips, then quote the returned file path. "
+            "Never claim a render you did not receive from a tool result, and say when a "
+            "model, checkpoint or ffmpeg is missing. " + _COMMON_RULES
         ),
-        backend="Role-scoped AgentLoop run over web/file/notes tools",
-        capability="partial",
-        notes="No image or video generation backend is connected to the core.",
+        backend=(
+            "Role-scoped AgentLoop run over image.*/video.* tools backed by the local "
+            "ComfyUI SDXL runtime and the local ffmpeg build"
+        ),
+        notes=(
+            "Renders are approval-gated and written under the data directory; video is "
+            "ffmpeg motion over generated stills unless a video model is installed."
+        ),
     ),
     AgentRole(
         id="memory",

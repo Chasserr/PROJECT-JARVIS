@@ -17,16 +17,17 @@ from typing import Any
 import httpx
 
 from .config import Settings
+from .tools.creative import probe_creative
+from .tools.desktop import probe_desktop
 from .tools.execution import project_root, run_command, write_roots
 from .tools.scanner import scan_python
 from .tools.vision import probe_vision
 
-# Capabilities that still have no implementation in the core at all. They are
-# listed explicitly so "not implemented" can never be confused with "unknown".
-UNIMPLEMENTED: dict[str, str] = {
-    "desktop_control": "mouse/keyboard control lives only in the legacy PC CONTROL runtime",
-    "creative_gen": "no image or video generation backend is connected",
-}
+# Capabilities that still have no implementation in the core at all. It is kept
+# (and read by probe_runtime) so "not implemented" can never be confused with
+# "unknown". Desktop control and creative generation graduated out of this list:
+# they now call the local PC CONTROL runtime and the local ComfyUI install.
+UNIMPLEMENTED: dict[str, str] = {}
 
 _CACHE_TTL_S = 300.0
 _cache: dict[str, Any] = {"at": 0.0, "value": None}
@@ -195,7 +196,17 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
 
     # Probe concurrently: the vision check loads a model, so running these in
     # sequence made the first /agents call take as long as all three combined.
-    llm, brave, vision, shell, browser, scanner, telephony = await asyncio.gather(
+    (
+        llm,
+        brave,
+        vision,
+        shell,
+        browser,
+        scanner,
+        telephony,
+        desktop,
+        creative,
+    ) = await asyncio.gather(
         probe_llm(settings),
         probe_brave(settings),
         probe_vision(
@@ -207,6 +218,8 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
         probe_browser(settings),
         probe_scanner(settings),
         probe_telephony(settings),
+        probe_desktop(settings),
+        probe_creative(settings),
     )
     probes: dict[str, Any] = {
         "llm": llm,
@@ -216,6 +229,8 @@ async def probe_runtime(settings: Settings, *, use_cache: bool = True) -> dict[s
         "browser_automation": browser,
         "scanner": scanner,
         "telephony": telephony,
+        "desktop_control": desktop,
+        "creative_gen": creative,
         "code_edit": probe_code_edit(settings),
     }
     for key, reason in UNIMPLEMENTED.items():
@@ -235,6 +250,8 @@ __all__ = [
     "probe_brave",
     "probe_browser",
     "probe_code_edit",
+    "probe_creative",
+    "probe_desktop",
     "probe_llm",
     "probe_runtime",
     "probe_scanner",
