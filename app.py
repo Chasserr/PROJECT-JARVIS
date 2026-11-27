@@ -760,6 +760,35 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path=="/api/apps":
             try: return self.send_json(200,{"apps":[{"name":x["Name"],"id":x["AppID"]} for x in get_installed_apps()]})
             except Exception as e: return self.send_json(503,{"error":str(e)})
+        if self.path=="/api/core/telephony":
+            return self.core_request("GET","/api/v1/telephony/status")
+        reports_dir=(ROOT/"backend"/"data"/"reports").resolve()
+        if self.path=="/api/reports":
+            items=[]
+            if reports_dir.is_dir():
+                for entry in sorted(reports_dir.iterdir(),key=lambda item:(item.stat().st_mtime,item.name),reverse=True):
+                    if entry.is_file() and entry.suffix.lower() in {".md",".pdf",".txt",".json"}:
+                        stat=entry.stat()
+                        items.append({"name":entry.name,"size":stat.st_size,"modified":datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")})
+            return self.send_json(200,{"reports":items,"count":len(items)})
+        report_match=re.fullmatch(r"/api/reports/(.+)",urllib.parse.unquote(urllib.parse.urlsplit(self.path).path))
+        if report_match:
+            name=Path(report_match.group(1)).name
+            target=(reports_dir/name).resolve()
+            if not name or target.parent!=reports_dir or not target.is_file():
+                return self.send_json(404,{"error":"Report not found."})
+            body=target.read_bytes()
+            content_type={".pdf":"application/pdf",".json":"application/json; charset=utf-8",".txt":"text/plain; charset=utf-8"}.get(target.suffix.lower(),"text/markdown; charset=utf-8")
+            safe_name=name.replace('"',"").replace("\r","").replace("\n","")
+            self.send_response(200)
+            self.send_header("Content-Type",content_type)
+            self.send_header("Content-Disposition",'inline; filename="'+safe_name+'"')
+            self.send_header("Content-Length",str(len(body)))
+            self.send_header("Cache-Control","no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path in ("/mobile","/mobile/"): self.path="/mobile.html"
         if self.path=="/": self.path="/index.html"
         return super().do_GET()
     def do_POST(self):
