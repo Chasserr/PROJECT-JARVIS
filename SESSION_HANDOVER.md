@@ -339,3 +339,25 @@ different images and require three different correct answers.
 - Live: dashboard and Core restarted so the new routes are served; `/mobile`
   200, `/api/reports` real list, `/api/core/telephony` reports unconfigured with
   the missing variable. No phone call has been placed.
+
+## 2026-11-27 — Desktop and Creative agents connected
+
+- New tools: `desktop.*` (proxy to the dashboard PC CONTROL runtime over
+  loopback, approval-gated) and `image.*`/`video.*` (local ComfyUI SDXL plus
+  ffmpeg). Both registered through `Container`, role-scoped in `team.py`.
+- Probes: `desktop_control` needs screen geometry and a foreground window;
+  `creative_gen` needs ComfyUI, the configured checkpoint and ffmpeg.
+  `UNIMPLEMENTED` is empty. Directory now reports all eleven roles connected.
+- Fixed while testing: `agent.delegate` timeout raised from 30 s to 300 s;
+  unconditional `pyperclip` import in `computer_action`; ASCII typing now uses
+  `pyautogui.write`; `focus_window`/`close_app` rewritten on ctypes
+  (milliseconds instead of ~120 s); new `/api/computer/input-status`;
+  actionable error when the desktop session is not attached.
+- Live: real mouse move, Notepad focus + 27 typed characters + Ctrl+S persisted
+  to disk, app launch, file rename/move, screenshot; image 768x768, image edit,
+  2 s MP4, trimmed MP4; delegation to both specialists with results returned.
+- Tests: 16 new in `tests/test_desktop_creative_tools.py`; suite **243 passed**;
+  ruff unchanged (pre-existing `SIM112`).
+- Requires: ComfyUI running (`AI-Tools\ComfyUI\Start-ComfyUI.bat`) and the
+  dashboard running for desktop control. Vision analysis still reports an empty
+  description — no multimodal model is installed in Ollama.

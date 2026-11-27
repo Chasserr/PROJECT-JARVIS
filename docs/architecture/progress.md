@@ -366,3 +366,48 @@ Verified on this machine: `/mobile` answers 200, `/api/reports` returns the real
 and the live iPhone viewport renders 6 real runs and 10 specialists with zero
 horizontal overflow. `tests/test_mobile_app.py` adds 5 Playwright tests; the full
 suite is 212 passing.
+
+## 2026-11-27 — Desktop and Creative agents brought online
+
+Both roles were marked partial because the core had no tools for them at all;
+the capabilities were listed in `UNIMPLEMENTED`. They are implemented now, and
+every check below was run against the live machine.
+
+- `backend/src/jarvis/tools/desktop.py`: eight `desktop.*` tools that call the
+  existing dashboard PC CONTROL runtime over loopback instead of duplicating it
+  — `status`, `windows`, `inspect`, `screenshot`, `focus`, `action`,
+  `open_app`, `close_app`, `files`. Every side effect is `CONFIRM` (most are
+  `dangerous`), so the approval pause, audit record and allowlists are kept.
+- `backend/src/jarvis/tools/creative.py`: `image.generate`, `image.edit`,
+  `video.create`, `video.edit`, backed by the local ComfyUI SDXL runtime and the
+  local ffmpeg build. No cloud key or subscription is involved.
+- `capabilities.py`: `desktop_control` and `creative_gen` are probed for real
+  (screen geometry plus a foreground window; ComfyUI server, checkpoint list and
+  ffmpeg). `UNIMPLEMENTED` is now empty.
+- `team.py`: the roster entries gained the new tools, personas and honest
+  `backend` strings; `ROLE_REQUIRES` still decides status from evidence.
+- `agent.delegate` had a 30 s tool timeout, which made every real delegation
+  fail mid-run; it is now 300 s.
+- PC runtime fixes found while testing: `pyperclip` was imported
+  unconditionally (a missing package broke every action), typing now uses
+  `pyautogui.write` for ASCII, `focus_window`/`close_app` use a millisecond
+  ctypes enumeration instead of a 120 s UIA walk, a new
+  `/api/computer/input-status` reports whether the runtime can see a foreground
+  window, and a detached desktop returns an actionable error instead of a
+  pyautogui fail-safe traceback.
+
+Live evidence: `desktop.status` 2560x1440 with the JARVIS window in front; a
+real mouse move; Notepad focused, 27 characters typed and saved to disk with
+Ctrl+S, then closed; `image.generate` 768x768 PNG (716 KB, 4.6 s),
+`image.edit`, a 2.0 s 960x540 h264 MP4 and a trimmed 1.42 s MP4; delegation to
+Desktop returned "The screen size is 2560x1440 and the active foreground window
+is JARVIS."; delegation to Creative paused for approval, was approved, and
+finished with a PNG artifact. `tests/test_desktop_creative_tools.py` adds 16
+tests; the suite is 243 passing.
+
+`desktop.files open` no longer trusts `os.startfile`: it asks the shell which
+executable owns the extension, refuses when there is none or when Windows would
+only show its "Pick an app" prompt, and after launching it waits for the app's
+window or process. A file type with a broken default app (this machine's `.txt`
+class points at a Store Notepad that never activates) now reports that instead
+of "Opened", and the stray picker dialog is closed again.
