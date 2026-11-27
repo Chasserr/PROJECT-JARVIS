@@ -92,9 +92,35 @@ Gaps:
 - No `jarvis skills` command yet; `jarvis tools` shows loaded skills and
   effective permissions.
 
-## Phase 3 — voice — **planned**
+## Phase 3 — voice — **in progress** (core shipped in the legacy desktop runtime)
 
-Scope:
+Verified 2026-11-27: the desktop runtime (`app.py`) already ships a working local
+voice path, so this phase is **not** unstarted. What exists, verified by code
+inspection and the recorded live smoke test in
+[LOCAL_VOICE_PIPELINE.md](../LOCAL_VOICE_PIPELINE.md):
+
+- `GET /api/voice/status` reports Kokoro local availability.
+- `POST /api/voice/speak` renders WAV via `AI-Tools/VoiceStack/speak.mjs`
+  (Node) with an allow-listed voice set; JARVIS is pinned to `af_bella`.
+- `POST /api/voice/transcribe` accepts bounded multipart audio (25 MB) and
+  transcribes locally with faster-whisper (`tiny`) via
+  `AI-Tools/VoiceStack/transcribe.py`.
+- The web orb records with MediaRecorder and submits to the local Whisper
+  endpoint; the wake listener starts a bounded 7-second capture.
+
+Still missing for this phase to close (the gap is the **core**, not the desktop
+UI):
+
+- Voice is implemented in the legacy `app.py` runtime, not in the FastAPI core
+  (`backend/`) or its agent loop.
+- openWakeWord wake-word model is not integrated; wake detection still uses the
+  browser SpeechRecognition API.
+- No interrupt/barge-in within the 300 ms target.
+- No voice approval prompts for `confirm` tools.
+- No multilingual path (Twi or otherwise).
+- Piper is not used; Kokoro replaced it.
+
+Original scope:
 
 - Wake word: openWakeWord (or a documented alternative) with a configurable
   model path; no always-on cloud.
@@ -115,7 +141,15 @@ Acceptance:
 Blocked/decision: Twi voice data/quality. Default: ship English, expose Twi as
 best-effort with a clear fallback.
 
-## Phase 4 — dashboard + PWA — **planned**
+## Phase 4 — dashboard + PWA — **planned** (partial legacy UI exists)
+
+Verified 2026-11-27: `web/` already contains a desktop dashboard
+(`index.html`, `app.js`, `style.css`, `tools-agents.js`, `workflow-studio.js`)
+and a mobile page (`mobile.html`, `mobile.js`, `mobile.webmanifest`), served by
+the legacy runtime. This is **not** the Phase 4 Next.js HUD and it does not yet
+surface core agent runs or approvals: `README.md` states agent runs and approval
+workflows are available through the core API but are not connected to a desktop
+approval interface.
 
 Scope:
 

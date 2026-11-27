@@ -1,7 +1,8 @@
 # JARVIS architecture
 
-Status: **Phase 1 implemented**; Phases 2–6 planned.
-Last updated: 2026-11-22.
+Status: **Phases 0–2 complete**; Phase 3 voice core shipped in the legacy desktop
+runtime (not yet in the core); Phases 4–6 planned.
+Last updated: 2026-11-27.
 
 ## 1. Intent
 
@@ -30,7 +31,7 @@ Design principles:
 | UI | Next.js + TypeScript + Tailwind | Phase 4 | Phase 1 is API + CLI first |
 | LLM | Claude primary, Ollama fallback | Provider interface; Ollama `qwen3.5:2b` default; Anthropic client ready | No `ANTHROPIC_API_KEY` on this machine; local-first default |
 | Memory | SQLite + Chroma/pgvector, encrypted | SQLite + AES-256-GCM; Ollama embeddings; lexical fallback | Chroma may lag 3.15; pgvector needs Postgres/Docker |
-| Voice | openWakeWord + Whisper + Piper/ElevenLabs | Phase 3 | ElevenLabs key is present; mic pipeline not built yet |
+| Voice | openWakeWord + Whisper + Piper/ElevenLabs | Kokoro TTS + faster-whisper STT shipped in the legacy `app.py` runtime | Local-only path already works; wake word is still browser SpeechRecognition, and the core has no voice yet |
 | Queue | Redis + Docker Compose | In-process async bus + SQLite durable outbox; Redis adapter Phase 5 | Docker and Redis are not installed |
 | Deployment | Docker Compose | Local venv now; Compose authored but not runnable here | Docker absent |
 
@@ -152,7 +153,7 @@ PROJECT-JARVIS-main/
 │  │     ├─ registry.py                # validation, timeout, audit, events
 │  │     └─ builtin.py                 # time, memory.*, system.info
 │  ├─ skills/                          # 11 skill packages (manifest + skill.py)
-│  └─ tests/                           # 64 passing tests
+│  └─ tests/                           # 67 passing tests
 ├─ docs/architecture/                  # this Phase 0 set
 ├─ frontend/                           # Phase 4 (Next.js)
 └─ docker-compose.yml                  # Phase 6 (not runnable without Docker)

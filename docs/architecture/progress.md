@@ -1,7 +1,20 @@
 # Implementation progress
 
-This workspace is not a git repository, so phase execution is tracked here
-instead of in commits.
+> **2026-11-27 — version control restored.** This workspace was an extracted ZIP
+> copy with no `.git` directory, so history was lost and no change was
+> revertable. `git init` was run and the untouched working tree was committed as
+> the baseline (`chore: import existing JARVIS project into version control`,
+> 143 tracked files). Secrets, the memory database and rollback backups remain
+> untracked by `.gitignore`. Phase execution can now be tracked in commits again;
+> this file stays as the narrative ledger.
+>
+> **Document paths referenced by handover notes do not exist.** The real files are:
+>
+> | Referenced | Actual |
+> |---|---|
+> | `docs/architecture/SYSTEM-ARCHITECTURE.md` | `docs/architecture/README.md` |
+> | `docs/architecture/PHASE-PLAN.md` | `docs/architecture/phases.md` |
+> | `docs/security/BUGHUNTER-INTEGRATION.md` | does not exist; see `docs/architecture/security.md` |
 
 ## Phase 2 — skills + starter toolset
 
@@ -45,3 +58,27 @@ Ledger:
 - Ruling: missing `requires_env` values warn but do not block loading, so the
   rest of JARVIS stays usable without a Brave key. Cost if wrong: a skill is
   listed that fails at call time.
+
+## 2026-11-27 — audit, version control, and documentation correction
+
+Verified on this machine, not assumed:
+
+- `pytest` in `backend/`: **67 passed**, exit 0. (Docs previously said 64, so
+  the suite had already grown past the written record.)
+- `nomic-embed-text` **is** installed, so vector recall is active and the
+  Phase 2 "embedding model warning" is stale.
+- Voice is implemented in the legacy runtime, not merely planned — see the
+  corrected Phase 3 entry in [phases.md](phases.md).
+- No services were listening on 8765/8766/8767 at audit time.
+- The core still has **no specialist-agent layer**: `agent/` contains only
+  planner, executor (`loop.py`) and critic. `llm/openjarvis.py` is a 53-line
+  HTTP client, not an orchestrator. The 10-role agent team in the handover is
+  **not implemented**.
+
+Documentation corrected in this pass: `phases.md` (Phase 3 and Phase 4 status),
+`architecture/README.md` (status line, voice row, test count), and the new
+[INTEGRATION-STATUS.md](../INTEGRATION-STATUS.md) recording which external tools
+are actually installed and working.
+
+Ruling: doc-only changes, no code touched, so the suite was not re-run after the
+edit. Cost if wrong: none — no executable path changed.
