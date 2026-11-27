@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "name": "web.read",
+  "description": "Fetch a public web page and return readable text. Blocks private and local hosts.",
+  "permission": "read_only",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 2048
+      },
+      "max_chars": {
+        "type": "integer",
+        "minimum": 500,
+        "maximum": 50000
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "timeout_s": 30,
+  "tags": [
+    "web",
+    "read"
+  ]
+}

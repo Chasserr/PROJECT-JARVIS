@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "name": "files.search",
+  "description": "Find files by name inside the configured allowlisted folders only.",
+  "permission": "read_only",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "max_results": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "timeout_s": 20,
+  "tags": [
+    "files",
+    "search"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "name": "notes.list",
+  "description": "List recent notes, newest first.",
+  "permission": "read_only",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "tags": [
+    "notes"
+  ]
+}

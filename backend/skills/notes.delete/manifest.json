@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "name": "notes.delete",
+  "description": "Delete a note. Soft delete by default; hard=true is irreversible.",
+  "permission": "confirm",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "hard": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false
+  },
+  "tags": [
+    "notes",
+    "destructive"
+  ],
+  "dangerous": true
+}

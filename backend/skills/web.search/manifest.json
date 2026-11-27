@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "name": "web.search",
+  "description": "Search the public web with Brave and return titles, URLs, and snippets.",
+  "permission": "read_only",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+      },
+      "count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "timeout_s": 20,
+  "tags": [
+    "web",
+    "search"
+  ],
+  "requires_env": [
+    "JARVIS_BRAVE_API_KEY"
+  ]
+}

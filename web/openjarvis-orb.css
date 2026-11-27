@@ -1,0 +1,12 @@
+/* Exact orb treatment from the supplied OpenJarvis reference */
+.jarvis-redesign .core-ring-label{display:none!important}
+.jarvis-redesign #mic.orb{filter:none!important;animation:none!important;width:min(48vw,620px)!important;height:min(48vw,620px)!important;max-width:620px!important;max-height:620px!important}
+.jarvis-redesign #mic.orb.listening{animation:orbPulse 1.4s ease-in-out infinite!important}
+.jarvis-redesign #mic.orb.speaking{animation:orbSpeak .65s ease-in-out infinite alternate!important}
+.jarvis-redesign #mic.orb.thinking{animation:orbPulse 2.2s ease-in-out infinite!important}
+.jarvis-redesign #mic.orb #neuralCore{filter:drop-shadow(0 0 24px #16cfffcc) drop-shadow(0 0 56px #5d43ff99) drop-shadow(0 0 110px #168cff55)!important}
+.jarvis-redesign .orb-halo{border-color:#2b9fff66!important;box-shadow:0 0 22px #168dff22!important}
+.jarvis-redesign .halo-one{border-left-color:#c45cff!important}
+.jarvis-redesign .halo-two{border-color:#24cfff66!important}
+.jarvis-redesign .halo-three{border-color:#9255ff55!important}
+@media(max-width:850px){.jarvis-redesign #mic.orb{width:min(78vw,390px)!important;height:min(78vw,390px)!important}}

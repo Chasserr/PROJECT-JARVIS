@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "name": "reminders.complete",
+  "description": "Mark a reminder as done.",
+  "permission": "autonomous",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false
+  },
+  "tags": [
+    "reminders"
+  ]
+}

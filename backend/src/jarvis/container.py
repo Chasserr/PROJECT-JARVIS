@@ -1,0 +1,116 @@
+"""Composition root. One place wires settings, storage, security, tools, and agent."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .agent.critic import Critic
+from .agent.loop import AgentLoop
+from .agent.planner import Planner
+from .config import Settings
+from .db import Database
+from .events import EventBus
+from .llm.base import LLMClient
+from .llm.factory import build_llm
+from .memory.embeddings import EmbeddingProvider, OllamaEmbeddings
+from .memory.store import MemoryStore
+from .security.audit import AuditLog
+from .security.crypto import SecretBox
+from .security.kill_switch import KillSwitch
+from .security.permissions import PermissionPolicy
+from .skills.loader import LoadedSkill, SkillLoader
+from .tools.builtin import build_builtin_registry
+from .tools.registry import ToolRegistry
+
+UNSET = object()
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class Container:
+    settings: Settings
+    db: Database
+    box: SecretBox
+    audit: AuditLog
+    events: EventBus
+    memory: MemoryStore
+    registry: ToolRegistry
+    llm: LLMClient
+    planner: Planner
+    critic: Critic
+    agent: AgentLoop
+    kill_switch: KillSwitch
+    skills: list[LoadedSkill] = field(default_factory=list)
+
+
+def resolve_skills_dir(settings: Settings) -> Path:
+    if settings.skills_dir is not None:
+        return Path(settings.skills_dir)
+    local = Path.cwd() / "skills"
+    if local.is_dir():
+        return local
+    return Path(__file__).resolve().parents[2] / "skills"
+
+
+def build_container(
+    settings: Settings | None = None,
+    *,
+    llm: LLMClient | None = None,
+    embeddings: EmbeddingProvider | None | object = UNSET,
+) -> Container:
+    settings = settings or Settings()
+    settings.ensure_dirs()
+    db = Database(settings.db_path)
+    db.initialize()
+    box = SecretBox.from_settings(settings)
+    audit = AuditLog(db, box)
+    events = EventBus(db)
+    kill_switch = KillSwitch(db)
+
+    if embeddings is UNSET:
+        if settings.ollama_embed_model:
+            embeddings = OllamaEmbeddings(settings.ollama_url, settings.ollama_embed_model)
+        else:
+            embeddings = None
+    memory = MemoryStore(db, box, embeddings if embeddings is not None else None)  # type: ignore[arg-type]
+    policy = PermissionPolicy(settings.tool_permissions)
+    registry = build_builtin_registry(policy=policy, audit=audit, events=events, settings=settings)
+    loaded_skills = SkillLoader(registry).load_dir(resolve_skills_dir(settings))
+    for skill in loaded_skills:
+        if skill.missing_env:
+            log.warning(
+                "skill %s is missing env vars: %s", skill.name, ", ".join(skill.missing_env)
+            )
+    client = llm or build_llm(settings)
+    planner = Planner(client, registry, settings)
+    critic = Critic(client)
+    agent = AgentLoop(
+        db=db,
+        box=box,
+        memory=memory,
+        registry=registry,
+        llm=client,
+        planner=planner,
+        critic=critic,
+        events=events,
+        audit=audit,
+        settings=settings,
+        kill_switch=kill_switch,
+    )
+    return Container(
+        settings=settings,
+        db=db,
+        box=box,
+        audit=audit,
+        events=events,
+        memory=memory,
+        registry=registry,
+        llm=client,
+        planner=planner,
+        critic=critic,
+        agent=agent,
+        kill_switch=kill_switch,
+        skills=loaded_skills,
+    )
