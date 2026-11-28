@@ -20,9 +20,10 @@ from typing import Any
 import httpx
 
 from ..config import Settings
+from ..security.kill_switch import KillSwitch
 from ..security.permissions import PermissionTier
 from .manifest import ToolManifest
-from .registry import ToolContext, ToolRegistry, ToolResult
+from .registry import ToolContext, ToolFunc, ToolRegistry, ToolResult, ToolReturn
 
 
 class DesktopRuntimeError(RuntimeError):
@@ -227,6 +228,25 @@ _SCREEN_SCHEMA = {
 }
 
 
+def _guard(fn: ToolFunc) -> ToolFunc:
+    """Refuse the whole desktop surface while the global kill switch is engaged.
+
+    AgentLoop already checks the switch between steps. This makes each desktop
+    tool refuse on its own as well, so a direct registry call or a specialist
+    delegation cannot drive the mouse, keyboard or files past an engaged switch.
+    """
+
+    async def guarded(args: dict[str, Any], context: ToolContext) -> ToolReturn:
+        if context.db is not None and KillSwitch(context.db).is_engaged():
+            return ToolResult(
+                ok=False,
+                error="kill switch engaged: desktop control is blocked until it is released",
+            )
+        return await fn(args, context)
+
+    return guarded
+
+
 def register_desktop_tools(registry: ToolRegistry) -> None:
     registry.register(
         ToolManifest(
@@ -240,7 +260,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             input_schema={"type": "object", "properties": {}, "additionalProperties": False},
             tags=["desktop", "pc", "windows"],
         ),
-        _status,
+        _guard(_status),
     )
     registry.register(
         ToolManifest(
@@ -250,7 +270,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             input_schema={"type": "object", "properties": {}, "additionalProperties": False},
             tags=["desktop", "pc", "windows"],
         ),
-        _windows,
+        _guard(_windows),
     )
     registry.register(
         ToolManifest(
@@ -274,7 +294,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=60.0,
             tags=["desktop", "pc", "ui"],
         ),
-        _inspect,
+        _guard(_inspect),
     )
     registry.register(
         ToolManifest(
@@ -285,7 +305,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=60.0,
             tags=["desktop", "pc", "screen"],
         ),
-        _screenshot,
+        _guard(_screenshot),
     )
     registry.register(
         ToolManifest(
@@ -297,7 +317,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=60.0,
             tags=["desktop", "pc", "mouse", "keyboard"],
         ),
-        _action,
+        _guard(_action),
     )
     registry.register(
         ToolManifest(
@@ -316,7 +336,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=45.0,
             tags=["desktop", "pc", "windows"],
         ),
-        _focus,
+        _guard(_focus),
     )
     registry.register(
         ToolManifest(
@@ -336,7 +356,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=60.0,
             tags=["desktop", "pc", "apps"],
         ),
-        _open_app,
+        _guard(_open_app),
     )
     registry.register(
         ToolManifest(
@@ -353,7 +373,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=45.0,
             tags=["desktop", "pc", "apps"],
         ),
-        _close_app,
+        _guard(_close_app),
     )
     registry.register(
         ToolManifest(
@@ -379,7 +399,7 @@ def register_desktop_tools(registry: ToolRegistry) -> None:
             timeout_s=60.0,
             tags=["desktop", "pc", "files"],
         ),
-        _files,
+        _guard(_files),
     )
 
 

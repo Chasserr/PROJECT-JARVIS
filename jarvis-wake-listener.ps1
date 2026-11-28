@@ -5,6 +5,15 @@ $Python = "C:\Python315\python.exe"
 if (-not (Test-Path $Python)) { $Python = (Get-Command python.exe -ErrorAction Stop).Source }
 $Log = Join-Path $Project "jarvis-wake.log"
 function Log($m) { Add-Content -Path $Log -Value ("[{0}] {1}" -f (Get-Date -Format s),$m) }
+# One listener only: a machine-wide named mutex makes a second launch exit instead
+# of racing for the microphone and double-triggering on every wake phrase.
+$WakeMutex = [System.Threading.Mutex]::new($false, "Local\JarvisWakeListener")
+$ownsMutex = $WakeMutex.WaitOne(0)
+if (-not $ownsMutex) {
+  Log "Another wake listener is already running; this launch exiting without opening the microphone."
+  $WakeMutex.Dispose()
+  exit 0
+}
 $recognizer = $null
 try {
   Add-Type -AssemblyName System.Speech
@@ -42,5 +51,7 @@ try {
 } finally {
   if ($recognizer) { $recognizer.Dispose() }
   Unregister-Event -SourceIdentifier JarvisWake -ErrorAction SilentlyContinue
+  if ($ownsMutex) { $WakeMutex.ReleaseMutex() }
+  $WakeMutex.Dispose()
 }
 
