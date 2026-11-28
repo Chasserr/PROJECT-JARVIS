@@ -30,3 +30,7 @@ spotify-token.json
 
 # Runtime data (database, master key, generated reports)
 /data/
+
+# local camera frames and device choice
+camera-captures/
+camera-config.json

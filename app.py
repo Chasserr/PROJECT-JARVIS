@@ -487,6 +487,109 @@ def inspect_ui_bounded(window_title="",timeout=10):
         target.unlink(missing_ok=True)
 
 
+CAMERA_LOCK = threading.Lock()
+CAMERA_CONFIG = ROOT / "camera-config.json"
+CAMERA_ERROR = {"last": None}
+
+
+def _ffmpeg_bin():
+    candidates = []
+    env = os.environ.get("JARVIS_FFMPEG", "").strip()
+    if env: candidates.append(env)
+    candidates.append(str(Path.home() / "AI-Tools" / "ffmpeg" / "bin" / "ffmpeg.exe"))
+    found = shutil.which("ffmpeg")
+    if found: candidates.append(found)
+    for candidate in candidates:
+        if Path(candidate).is_file(): return candidate
+    raise RuntimeError("ffmpeg was not found; set JARVIS_FFMPEG to ffmpeg.exe.")
+
+
+def camera_devices():
+    """DirectShow video devices Windows reports right now."""
+    result = subprocess.run(
+        [_ffmpeg_bin(), "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
+        capture_output=True, text=True, timeout=25,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    names = re.findall(r'"([^"]+)"\s+\(video\)', result.stderr or "")
+    return [{"index": index, "name": name} for index, name in enumerate(names)]
+
+
+def camera_config():
+    try: cfg = json.loads(CAMERA_CONFIG.read_text(encoding="utf-8"))
+    except Exception: cfg = {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def camera_selected():
+    """The chosen device, but only while it is actually attached."""
+    chosen = str(camera_config().get("device") or "").strip()
+    if not chosen: return None
+    try: names = {d["name"] for d in camera_devices()}
+    except Exception: return chosen
+    return chosen if chosen in names else None
+
+
+def camera_default():
+    chosen = camera_selected()
+    if chosen: return chosen
+    devices = camera_devices()
+    if not devices: raise RuntimeError("Windows reported no camera device.")
+    return devices[0]["name"]
+
+
+def camera_capture(device=None, timeout=30):
+    """Grab exactly one frame, one caller at a time, so two services never fight for the device."""
+    ff = _ffmpeg_bin()
+    name = str(device or "").strip() or camera_default()
+    with CAMERA_LOCK:
+        fd, raw = tempfile.mkstemp(prefix="jarvis-camera-", suffix=".jpg")
+        os.close(fd)
+        target = Path(raw)
+        try:
+            process = None
+            # Two attempts: a device that just started can miss the first frame.
+            for attempt in range(2):
+                process = subprocess.run(
+                    [ff, "-hide_banner", "-loglevel", "error", "-f", "dshow",
+                     "-video_size", "1280x720", "-framerate", "30",
+                     "-i", "video=" + name, "-frames:v", "1", "-y", str(target)],
+                    capture_output=True, text=True, timeout=timeout,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if process.returncode == 0 and target.exists() and target.stat().st_size > 0:
+                    break
+                time.sleep(0.6)
+            if process is None or process.returncode != 0 or not target.exists() or target.stat().st_size == 0:
+                detail = (getattr(process, "stderr", "") or "the camera returned no frame").strip()
+                if "no packets" in detail or "received no packets" in detail:
+                    detail = (
+                        f"{name} opened but delivered no frames, so nothing is streaming into it. "
+                        "Start the source app for that virtual camera (the phone-side Iriun app, or "
+                        "Camo Studio with a device connected), then retry."
+                    )
+                else:
+                    detail = detail[-300:]
+                CAMERA_ERROR["last"] = detail
+                raise RuntimeError(detail)
+            from PIL import Image, ImageStat
+            with Image.open(target) as shot:
+                image = shot.convert("RGB")
+            luma = ImageStat.Stat(image.convert("L"))
+            # A virtual device with no source attached still opens and returns pure black.
+            blank = luma.mean[0] < 1.0 and luma.stddev[0] < 0.5
+            CAMERA_ERROR["last"] = None
+            return image, {
+                "device": name,
+                "width": image.width,
+                "height": image.height,
+                "blank_frame": bool(blank),
+                "mean_luma": round(float(luma.mean[0]), 2),
+            }
+        finally:
+            target.unlink(missing_ok=True)
+
+
 def inspect_ui(window_title="", budget_s=6.0):
     """Bounded UI Automation inspection.
 
@@ -849,6 +952,27 @@ class Handler(SimpleHTTPRequestHandler):
             try: d["models"]=get_models(); d["ollama"]=True
             except Exception as e: d["error"]=str(e)
             d["memory_count"]=len(get_memories()); return self.send_json(200,d)
+        camera_path=self.path.split("?",1)[0]
+        if camera_path=="/api/camera/status":
+            try:
+                devices=camera_devices(); chosen=camera_config().get("device")
+                return self.send_json(200,{"available":True,"devices":devices,"selected":chosen,
+                                          "default":camera_selected() or (devices[0]["name"] if devices else None),
+                                          "ffmpeg":_ffmpeg_bin(),"last_error":CAMERA_ERROR["last"]})
+            except Exception as e: return self.send_json(503,{"available":False,"devices":[],"error":str(e)[:300]})
+        if camera_path=="/api/camera/devices":
+            try: return self.send_json(200,{"devices":camera_devices()})
+            except Exception as e: return self.send_json(503,{"error":"Camera enumeration failed: "+str(e)[:300]})
+        if camera_path=="/api/camera/frame":
+            try:
+                image,meta=camera_capture()
+                output=io.BytesIO(); image.save(output,format="JPEG",quality=88)
+                body=output.getvalue(); self.send_response(200)
+                self.send_header("Content-Type","image/jpeg"); self.send_header("Content-Length",str(len(body)))
+                self.send_header("Cache-Control","no-store")
+                self.send_header("X-Jarvis-Camera-Blank","1" if meta["blank_frame"] else "0")
+                self.end_headers(); self.wfile.write(body); return
+            except Exception as e: return self.send_json(503,{"error":"Camera capture failed: "+str(e)[:300]})
         if self.path=="/api/core/tools":
             return self.core_request("GET","/api/v1/tools")
         if self.path=="/api/core/agents":
@@ -991,6 +1115,25 @@ class Handler(SimpleHTTPRequestHandler):
                 if action not in ("play","resume","pause","next","previous","status"): return self.send_json(400,{"ok":False,"error":"Choose play, pause, next, previous, or status."})
                 return self.send_json(200,spotify_playback_action(action))
             except Exception as e: return self.send_json(503,{"ok":False,"error":str(e)[:300]})
+        if self.path=="/api/camera/select":
+            try: device=str((self.read_body() or {}).get("device") or "").strip()
+            except Exception: device=""
+            try:
+                names={d["name"] for d in camera_devices()}
+                if device and device not in names: return self.send_json(404,{"error":"That camera is not attached; refresh the device list."})
+                CAMERA_CONFIG.write_text(json.dumps({"device":device or None}),encoding="utf-8")
+                return self.send_json(200,{"selected":device or None})
+            except Exception as e: return self.send_json(503,{"error":"Camera selection failed: "+str(e)[:300]})
+        if self.path=="/api/camera/capture":
+            try:
+                try: requested=str((self.read_body() or {}).get("device") or "").strip()
+                except Exception: requested=""
+                image,meta=camera_capture(requested or None)
+                folder=ROOT/"camera-captures"; folder.mkdir(exist_ok=True)
+                path=folder/("camera-"+time.strftime("%Y%m%d-%H%M%S")+".jpg")
+                image.save(path,format="JPEG",quality=90)
+                return self.send_json(200,{**meta,"path":str(path),"bytes":path.stat().st_size})
+            except Exception as e: return self.send_json(503,{"error":"Camera capture failed: "+str(e)[:300]})
         if self.path=="/api/camera/analyze":
             try:
                 size=int(self.headers.get("Content-Length","0"))

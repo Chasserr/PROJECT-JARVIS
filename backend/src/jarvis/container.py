@@ -31,6 +31,7 @@ from .tools.agent_tools import register_agent_tools
 from .tools.bughunter import register_bughunter_tools
 from .tools.builtin import build_builtin_registry
 from .tools.creative import register_creative_tools
+from .tools.camera import register_camera_tools
 from .tools.desktop import register_desktop_tools
 from .tools.execution import register_execution_tools
 from .tools.pc_security import register_pc_security_tools
@@ -99,6 +100,7 @@ def build_container(
     registry = build_builtin_registry(policy=policy, audit=audit, events=events, settings=settings)
     register_vision_tool(registry)
     register_desktop_tools(registry)
+    register_camera_tools(registry)
     register_creative_tools(registry)
     register_action_tools(registry)
     register_execution_tools(registry)

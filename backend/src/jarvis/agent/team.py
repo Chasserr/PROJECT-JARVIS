@@ -221,9 +221,21 @@ ROSTER: tuple[AgentRole, ...] = (
             "desktop.open_app",
             "desktop.close_app",
             "desktop.files",
+            "camera.devices",
+            "camera.status",
+            "camera.connect",
+            "camera.disconnect",
+            "camera.capture",
+            "camera.get_frame",
+            "camera.analyze",
+            "camera.reconnect",
         ),
         persona=(
-            "You are a desktop operator. Inspect before you act: call desktop.status or "
+            "You are a desktop operator. When the user asks what you can see, to look at "
+            "something, or to read text in front of the camera, call camera.analyze with "
+            "their question as the prompt and report the description you get back; use "
+            "camera.status or camera.devices first if the camera may be disconnected. "
+            "Inspect before you act: call desktop.status or "
             "desktop.windows first, and desktop.inspect when a target is a specific "
             "control. Use desktop.action for mouse and keyboard, desktop.open_app to "
             "launch, desktop.files for approved file work. Every side effect pauses for "
