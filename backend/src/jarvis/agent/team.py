@@ -150,6 +150,16 @@ ROSTER: tuple[AgentRole, ...] = (
             "web.read",
             "memory.search",
             "security.scan",
+            "security.source_scan",
+            "security.pc_audit",
+            "security.defender_scan",
+            "security.bughunter_status",
+            "security.bughunter_classify",
+            "security.bughunter_skill",
+            "security.bughunter_audit",
+            "security.bughunter_triage",
+            "security.bughunter_report",
+            "sandbox.run",
             "sources.search",
             "sources.read",
         ),
@@ -160,7 +170,10 @@ ROSTER: tuple[AgentRole, ...] = (
         ),
         backend="Role-scoped AgentLoop run over host, source and dependency-audit tools",
         capability="partial",
-        notes="Read-only: security.scan runs pip-audit and npm audit without writing anything.",
+        notes=(
+            "Read-only apart from two approval gates: security.defender_scan starts a "
+            "Defender quick scan and security.bughunter_report writes a draft."
+        ),
     ),
     AgentRole(
         id="testing",

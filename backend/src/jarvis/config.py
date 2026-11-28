@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     # pip-audit queries an advisory service, so this is longer than a normal command.
     scanner_timeout_s: float = Field(default=180.0, gt=0, le=600)
     reports_dir: Path | None = None
+    # External Claude-BugHunter library the bughunter tools bridge to;
+    # unset means jarvis.tools.bughunter uses its own default location.
+    bughunter_root: Path | None = None
 
     # --- Desktop control and creative generation --------------------------
     # Both talk to a local runtime over loopback: the dashboard PC CONTROL
@@ -163,6 +166,7 @@ class Settings(BaseSettings):
         "project_root",
         "obsidian_vault",
         "reports_dir",
+        "bughunter_root",
         mode="before",
     )
     @classmethod

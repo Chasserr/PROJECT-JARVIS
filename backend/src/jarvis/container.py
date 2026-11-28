@@ -28,14 +28,18 @@ from .skills.loader import LoadedSkill, SkillLoader
 from .telephony import VoiceGateway, register_telephony_tool
 from .tools.actions import register_action_tools
 from .tools.agent_tools import register_agent_tools
+from .tools.bughunter import register_bughunter_tools
 from .tools.builtin import build_builtin_registry
 from .tools.creative import register_creative_tools
 from .tools.desktop import register_desktop_tools
 from .tools.execution import register_execution_tools
+from .tools.pc_security import register_pc_security_tools
 from .tools.registry import ToolRegistry
 from .tools.scanner import register_scanner_tool
+from .tools.security_scanner import register_source_scan_tool
 from .tools.sources import register_source_tools
 from .tools.vision import register_vision_tool
+from .tools.windows_sandbox import register_sandbox_tool
 
 UNSET = object()
 log = logging.getLogger(__name__)
@@ -99,6 +103,10 @@ def build_container(
     register_action_tools(registry)
     register_execution_tools(registry)
     register_scanner_tool(registry)
+    register_source_scan_tool(registry)
+    register_pc_security_tools(registry)
+    register_sandbox_tool(registry)
+    register_bughunter_tools(registry)
     notes = NoteStore(db, box)
     connectors = build_connector_registry(settings, memory=memory, notes=notes)
     register_source_tools(registry, connectors)
