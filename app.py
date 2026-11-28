@@ -481,46 +481,72 @@ def inspect_ui_bounded(window_title="",timeout=10):
         if result.returncode!=0 or not target.exists():
             raise RuntimeError((result.stderr or result.stdout or "UI inspection process failed")[-400:])
         return json.loads(target.read_text(encoding="utf-8") or "{}")
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("UI Automation did not answer within "+str(timeout)+" seconds. The target window may be busy; retry or close the blocking dialog.") from exc
     finally:
         target.unlink(missing_ok=True)
 
 
-def inspect_ui(window_title=""):
-    from pywinauto import Desktop
-    desktop=Desktop(backend="uia")
-    wins=desktop.windows(visible_only=True,enabled_only=True)
-    selected=None
+def inspect_ui(window_title="", budget_s=6.0):
+    """Bounded UI Automation inspection.
+
+    pywinauto's desktop-wide enumeration and unbounded descendants() walk every
+    top-level window and every UIA node, with several cross-process calls per
+    node; on a busy desktop that takes minutes. This version resolves one window
+    from the cheap Win32 title list, walks a shallow UIA subtree, and stops at a
+    hard time budget so the caller always gets an answer.
+    """
+    import time
+    titles=[]
+    try:
+        import win32gui
+        def collect(hwnd, _):
+            try:
+                if win32gui.IsWindowVisible(hwnd):
+                    text=win32gui.GetWindowText(hwnd).strip()
+                    if text: titles.append((hwnd,text))
+            except Exception: pass
+            return True
+        win32gui.EnumWindows(collect,None)
+    except Exception: titles=[]
     wanted=str(window_title or "").strip().lower()
-    for win in wins:
-        try:
-            title=win.window_text().strip()
-            if wanted and wanted in title.lower(): selected=win; break
-        except Exception: pass
-    if selected is None and not wanted:
+    target=None
+    if wanted:
+        target=next(((h,t) for h,t in titles if wanted in t.lower()),None)
+    else:
         try:
             import win32gui
-            title=win32gui.GetWindowText(win32gui.GetForegroundWindow()).strip().lower()
-            selected=next((w for w in wins if title and title in w.window_text().strip().lower()),None)
-        except Exception: pass
-        if selected is None:
-            try: selected=desktop.get_active()
-            except Exception: pass
-    if selected is None:
-        return {"window":None,"controls":[],"windows":[w.window_text()[:160] for w in wins if w.window_text().strip()][:30]}
+            fg=win32gui.GetForegroundWindow(); fg_title=win32gui.GetWindowText(fg).strip()
+            if fg_title: target=(fg,fg_title)
+        except Exception: target=None
+    listing=[t[:160] for _,t in titles][:30]
+    if target is None:
+        return {"window":None,"controls":[],"windows":listing}
+    hwnd,title=target
     controls=[]
-    for item in selected.descendants():
-        try:
-            name=item.window_text().strip()
-            ctype=item.element_info.control_type
-            if name and ctype in ("Button","Edit","Text","MenuItem","TabItem","ListItem","ComboBox","CheckBox","RadioButton","Hyperlink"):
+    note=None
+    deadline=time.monotonic()+max(1.0,float(budget_s))
+    try:
+        from pywinauto import Desktop
+        win=Desktop(backend="uia").window(handle=hwnd)
+        for item in win.descendants(depth=8):
+            if time.monotonic()>deadline: note="Inspection time budget reached; results are partial."; break
+            try:
+                ctype=item.element_info.control_type
+                if ctype not in ("Button","Edit","Text","MenuItem","TabItem","ListItem","ComboBox","CheckBox","RadioButton","Hyperlink"): continue
+                name=item.window_text().strip()
+                if not name: continue
                 rect=item.rectangle()
                 controls.append({"name":name[:180],"type":ctype,"enabled":item.is_enabled(),
                                  "rect":{"left":rect.left,"top":rect.top,"right":rect.right,"bottom":rect.bottom}})
+            except Exception: continue
             if len(controls)>=120: break
-        except Exception: pass
-    try: title=selected.window_text()[:240]
-    except Exception: title=""
-    return {"window":title,"controls":controls,"windows":[w.window_text()[:160] for w in wins if w.window_text().strip()][:30]}
+    except Exception as exc:
+        return {"window":title[:240],"controls":controls,"windows":listing,"error":str(exc)[:200]}
+    result={"window":title[:240],"controls":controls,"windows":listing}
+    if note: result["note"]=note
+    return result
+
 
 def ui_click_control(window_title, control_name):
     from pywinauto import Desktop
