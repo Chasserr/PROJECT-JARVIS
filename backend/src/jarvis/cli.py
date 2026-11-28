@@ -267,11 +267,40 @@ async def _cmd_doctor(settings: Settings) -> int:
     return 0
 
 
+def _warn_token_divergence() -> None:
+    """Warn when an ambient JARVIS_API_TOKEN shadows the value stored in backend/.env.
+
+    The environment wins in Settings, so a stale shell or user-level token silently
+    breaks any client that reads .env. Surfacing it keeps one credential source.
+    """
+    import logging
+    import os
+    from pathlib import Path
+
+    env_path = Path(".env")
+    if not env_path.is_file():
+        return
+    file_token = None
+    for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        entry = line.strip()
+        if entry.startswith("JARVIS_API_TOKEN="):
+            file_token = entry.partition("=")[2].strip().strip('"').strip("'")
+            break
+    env_token = os.environ.get("JARVIS_API_TOKEN", "").strip()
+    if file_token and env_token and file_token != env_token:
+        logging.getLogger(__name__).warning(
+            "JARVIS_API_TOKEN differs between the environment and backend/.env; the "
+            "environment value wins. Unset the stale variable or update .env so the "
+            "dashboard and the core share one token."
+        )
+
+
 def _cmd_serve(settings: Settings) -> int:
     import uvicorn
 
     from .api.app import create_app
 
+    _warn_token_divergence()
     app = create_app(settings)
     uvicorn.run(
         app,

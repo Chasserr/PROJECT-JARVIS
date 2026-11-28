@@ -446,6 +446,45 @@ def manage_file(data):
     raise ValueError("Unknown file operation.")
 
 
+def api_token():
+    """Single source of truth for the core token: process environment, then backend/.env.
+
+    JARVIS Core reads the same two sources with the same precedence, so the panel
+    and the core cannot drift apart whichever way the services were started.
+    """
+    token=os.environ.get("JARVIS_API_TOKEN","").strip()
+    if token: return token
+    for candidate in (ROOT/"backend"/".env",ROOT/".env"):
+        try: lines=candidate.read_text(encoding="utf-8",errors="replace").splitlines()
+        except (FileNotFoundError,NotADirectoryError): continue
+        for line in lines:
+            entry=line.strip()
+            if not entry or entry.startswith("#") or "=" not in entry: continue
+            key,_,value=entry.partition("=")
+            if key.strip()=="JARVIS_API_TOKEN": return value.strip().strip('"').strip("'")
+    return ""
+
+
+def inspect_ui_bounded(window_title="",timeout=10):
+    """Run UI Automation inspection in a child process so a stuck provider cannot block the server."""
+    fd,name=tempfile.mkstemp(prefix="jarvis-uia-",suffix=".json")
+    os.close(fd)
+    target=Path(name)
+    script=("import json,sys,app\n"
+            "open(sys.argv[2],'w',encoding='utf-8').write(json.dumps(app.inspect_ui(sys.argv[1])))\n")
+    try:
+        result=subprocess.run(
+            [sys.executable,"-c",script,str(window_title or ""),str(target)],
+            capture_output=True,text=True,timeout=timeout,cwd=str(ROOT),
+            creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0),
+        )
+        if result.returncode!=0 or not target.exists():
+            raise RuntimeError((result.stderr or result.stdout or "UI inspection process failed")[-400:])
+        return json.loads(target.read_text(encoding="utf-8") or "{}")
+    finally:
+        target.unlink(missing_ok=True)
+
+
 def inspect_ui(window_title=""):
     from pywinauto import Desktop
     desktop=Desktop(backend="uia")
@@ -741,7 +780,7 @@ class Handler(SimpleHTTPRequestHandler):
         return json.loads(self.rfile.read(n) or b"{}")
     def core_request(self, method, path, payload=None):
         base=os.environ.get("JARVIS_AGENT_API_URL","").strip().rstrip("/")
-        token=os.environ.get("JARVIS_API_TOKEN","").strip()
+        token=api_token()
         if not base or not token:
             self.send_json(503,{"error":"JARVIS Core agent connection is not configured."})
             return
@@ -778,7 +817,7 @@ class Handler(SimpleHTTPRequestHandler):
                     return self.send_json(200,{"app":"online","provider":provider,"ollama":core_ok and provider=="ollama","lm_studio":False,"model":core.get("model","JARVIS Core"),"models":[core.get("model","JARVIS Core")],"memory_count":core.get("memory_count",0),"agent_core":core})
                 except Exception as e:
                     with MODEL_LOCK: selected=MODEL
-                    return self.send_json(200,{"app":"online","lm_studio":False,"model":selected,"models":[],"memory_count":0,"agent_core_error":str(e)[:200]})
+                    return self.send_json(200,{"app":"online","provider":"core-offline","ollama":False,"lm_studio":False,"model":selected,"models":[],"memory_count":0,"brain":"JARVIS Core offline","agent_core":{"status":"offline","detail":str(e)[:200]},"agent_core_error":str(e)[:200]})
             with MODEL_LOCK: selected=MODEL
             d={"app":"online","provider":"ollama","ollama":False,"lm_studio":False,"model":selected,"models":[],"memory_count":0}
             try: d["models"]=get_models(); d["ollama"]=True
@@ -844,7 +883,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json(200,{"description":answer,"model":model,"screen":{"width":screen.width,"height":screen.height}})
             except Exception as e: return self.send_json(503,{"error":"Screen understanding unavailable: "+str(e)})
         if self.path=="/api/computer/inspect":
-            try: return self.send_json(200,inspect_ui(self.headers.get("X-Jarvis-Window","")))
+            try: return self.send_json(200,inspect_ui_bounded(self.headers.get("X-Jarvis-Window","")))
+            except TimeoutError: return self.send_json(504,{"error":"UI Automation did not respond within 10 seconds. The target window may be busy; retry or close the blocking dialog."})
             except Exception as e: return self.send_json(503,{"error":"UI inspection unavailable: "+str(e)})
         if self.path=="/api/computer/input-status":
             try: return self.send_json(200,input_status())
@@ -1106,7 +1146,7 @@ class Handler(SimpleHTTPRequestHandler):
             requested=data.get("model")
             openjarvis_url=os.environ.get("JARVIS_OPENJARVIS_API_URL","").strip().rstrip("/")
             if openjarvis_url:
-                token=os.environ.get("JARVIS_API_TOKEN","").strip()
+                token=api_token()
                 agent_url=os.environ.get("JARVIS_AGENT_API_URL","").strip().rstrip("/")
                 if not token or not agent_url: return self.send_json(503,{"error":"Authenticated JARVIS Core model control is not configured."})
                 try:
@@ -1180,7 +1220,7 @@ class Handler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     return self.send_json(503,{"error":"OpenJarvis brain is unavailable: "+str(e)[:300],"provider":"openjarvis"})
             agent_url=os.environ.get("JARVIS_AGENT_API_URL","").strip().rstrip("/")
-            agent_token=os.environ.get("JARVIS_API_TOKEN","").strip()
+            agent_token=api_token()
             if agent_url and agent_token:
                 try:
                     legacy_memory="\n".join("- "+str(m.get("note",""))[:500] for m in get_memories()[:20] if isinstance(m,dict) and m.get("note"))
