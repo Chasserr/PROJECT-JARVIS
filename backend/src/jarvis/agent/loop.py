@@ -17,6 +17,12 @@ from ..memory.store import MemoryStore
 from ..security.audit import AuditLog
 from ..security.crypto import SecretBox
 from ..security.kill_switch import KillSwitch, KillSwitchEngaged
+from ..security.modes import (
+    DEFAULT_MODE,
+    ExecutionMode,
+    auto_approved,
+    requires_approval,
+)
 from ..tools.registry import (
     ApprovalRequired,
     ToolContext,
@@ -73,6 +79,11 @@ class AgentLoop:
         self._settings = settings
         self._kill_switch = kill_switch
         self._team = team
+        self._mode_provider: Callable[[], ExecutionMode] = lambda: DEFAULT_MODE
+
+    def set_mode_provider(self, provider: Callable[[], ExecutionMode]) -> None:
+        """Read the active execution mode from the persisted setting."""
+        self._mode_provider = provider
 
     @property
     def team(self) -> AgentTeam | None:
@@ -112,6 +123,7 @@ class AgentLoop:
         role: str | None = None,
         depth: int = 0,
         parent_run_id: str | None = None,
+        mode: ExecutionMode | None = None,
     ) -> RunResult:
         goal = goal.strip()
         if not goal:
@@ -119,6 +131,7 @@ class AgentLoop:
         if self._kill_switch.is_engaged():
             raise KillSwitchEngaged("kill switch is engaged; release it before starting work")
         role_obj, role_id = self._resolve_role(role, depth)
+        active_mode = mode or self._mode_provider()
         run_id = str(uuid.uuid4())
         now = time.time()
         with self._db.connection() as conn:
@@ -151,6 +164,7 @@ class AgentLoop:
                 "session_id": session_id,
                 "role": role_id,
                 "parent_run_id": parent_run_id,
+                "mode": active_mode.value,
             },
         )
         self._save_meta(run_id, role_id, parent_run_id)
@@ -179,6 +193,7 @@ class AgentLoop:
             role=role_id,
             depth=depth,
             parent_run_id=parent_run_id,
+            mode=active_mode,
         )
 
     async def resume(
@@ -228,6 +243,7 @@ class AgentLoop:
             attempt=attempt,
             approvals={pending.signature},
             handler=approval_handler,
+            mode=self._mode_provider(),
             context=await self._build_context(goal, ""),
             role=role_id,
             depth=0,
@@ -249,6 +265,7 @@ class AgentLoop:
         role: str | None = None,
         depth: int = 0,
         parent_run_id: str | None = None,
+        mode: ExecutionMode = DEFAULT_MODE,
     ) -> RunResult:
         role_obj = self._team.get(role) if (role and self._team) else None
         allowed = self._team.allowed_names(role_obj) if role_obj else None
@@ -281,9 +298,42 @@ class AgentLoop:
                 loop=self,
                 depth=depth,
             )
+            manifest = self._registry.get(step.tool).manifest
+            tier = self._registry.effective_permission(manifest)
+            approved_now = auto_approved(mode, manifest, tier) or signature in approvals
+            if requires_approval(mode, manifest, tier) and not approved_now:
+                approval = ApprovalRequest(
+                    run_id=run_id,
+                    step_index=index,
+                    tool=step.tool,
+                    args=step.args,
+                    permission=tier.value,
+                    signature=signature,
+                )
+                if handler is not None:
+                    if not await handler(approval):
+                        await self._fail(run_id, "approval denied by user", plan, results)
+                        return self._load(run_id)
+                    approvals.add(signature)
+                    approved_now = True
+                else:
+                    self._await_approval(run_id, plan, results, approval)
+                    self._audit.record(
+                        actor="agent",
+                        action="run.awaiting_approval",
+                        tool=step.tool,
+                        outcome="pending",
+                        detail={
+                            "run_id": run_id,
+                            "signature": signature,
+                            "mode": mode.value,
+                            "step": index,
+                        },
+                    )
+                    return self._load(run_id)
             try:
                 result = await self._registry.execute(
-                    step.tool, step.args, tool_context, approved=signature in approvals
+                    step.tool, step.args, tool_context, approved=approved_now
                 )
             except ApprovalRequired as exc:
                 approval = ApprovalRequest(
@@ -374,6 +424,7 @@ class AgentLoop:
             role=role,
             depth=depth,
             parent_run_id=parent_run_id,
+            mode=mode,
         )
 
     async def _build_context(self, goal: str, base: str) -> str:

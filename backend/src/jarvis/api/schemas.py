@@ -89,6 +89,25 @@ class RunRequest(BaseModel):
     context: str = Field(default="", max_length=8000)
     # Run the goal as one specialist instead of the orchestrator.
     role: str | None = Field(default=None, max_length=40)
+    # Execution mode for this run; defaults to the persisted setting.
+    mode: str | None = Field(default=None, pattern=r"^(autonomous|supervised|manual)$")
+
+
+class ModeUpdate(BaseModel):
+    mode: str = Field(pattern=r"^(autonomous|supervised|manual)$")
+
+
+class ModeOption(BaseModel):
+    id: str
+    label: str
+    detail: str
+    available: bool
+
+
+class ModeState(BaseModel):
+    mode: str
+    detail: str
+    available: list[ModeOption]
 
 
 class ApprovalDecision(BaseModel):

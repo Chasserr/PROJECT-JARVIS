@@ -26,6 +26,7 @@ from ..memory.embeddings import EmbeddingProvider
 from ..memory.models import Memory, MemoryCreate
 from ..security.crypto import CryptoError
 from ..security.kill_switch import KillSwitchEngaged
+from ..security.modes import ExecutionMode, mode_state
 from ..telephony.routes import build_telephony_routers
 from ..tools.registry import ToolError
 from ..tools.vision import OllamaVision, VisionError, decode_image
@@ -40,6 +41,8 @@ from .schemas import (
     ConnectorSearchRequest,
     HealthResponse,
     MemoryListResponse,
+    ModeState,
+    ModeUpdate,
     RunListResponse,
     RunRequest,
     ToolInfo,
@@ -429,6 +432,27 @@ def create_app(
         final_status = "completed" if all(item["status"] == "completed" for item in records.values()) else "failed"
         return {"id": workflow_id, "status": final_status, "nodes": list(records.values())}
 
+    @router.get("/agent/mode", response_model=ModeState)
+    def get_agent_mode() -> ModeState:
+        """The persisted execution mode plus every selectable option."""
+        return ModeState(**mode_state(container.mode_store.get()))
+
+    @router.post("/agent/mode", response_model=ModeState)
+    def set_agent_mode(payload: ModeUpdate) -> ModeState:
+        """Select the execution mode used by every subsequent run."""
+        try:
+            mode = ExecutionMode(payload.mode)
+        except ValueError as exc:  # pragma: no cover - schema already constrains this
+            raise HTTPException(status_code=400, detail=f"unknown mode: {payload.mode}") from exc
+        container.mode_store.set(mode)
+        container.audit.record(
+            actor="user",
+            action="mode.changed",
+            outcome="ok",
+            detail={"mode": mode.value},
+        )
+        return ModeState(**mode_state(mode))
+
     @router.post("/agent/runs", response_model=RunResult)
     async def start_run(payload: RunRequest):
         try:
@@ -437,6 +461,7 @@ def create_app(
                 session_id=payload.session_id,
                 context=payload.context,
                 role=payload.role,
+                mode=ExecutionMode(payload.mode) if payload.mode else None,
             )
         except KillSwitchEngaged as exc:
             raise HTTPException(status_code=423, detail=str(exc)) from exc

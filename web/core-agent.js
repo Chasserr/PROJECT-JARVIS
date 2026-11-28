@@ -582,17 +582,60 @@
     };
   }
 
-  /* ---------------- mode notes ---------------- */
-  const MODE_NOTES = {
-    caModeAutonomous: 'Autonomous is not available: Core has no autonomous tool policy, so confirmation-gated tools would still pause for approval.',
-    caModeSupervised: 'Supervised is enforced by the Core permission policy: every confirmation-tier tool pauses for your approval.',
-    caModeManual: 'Manual step execution has no Core endpoint yet; an approved run executes its plan continuously.',
+  /* ---------------- execution modes ---------------- */
+  const MODE_IDS = { caModeAutonomous: 'autonomous', caModeSupervised: 'supervised', caModeManual: 'manual' };
+  const modeNote = (text) => { const target = el('caModeNote'); if (target) target.textContent = text || ''; };
+
+  const renderMode = (state) => {
+    if (!state || !state.mode) return;
+    Object.entries(MODE_IDS).forEach(([id, value]) => {
+      const button = el(id);
+      if (!button) return;
+      const active = state.mode === value;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-checked', active ? 'true' : 'false');
+      button.removeAttribute('aria-disabled');
+      const option = (state.available || []).find((item) => item.id === value);
+      const small = button.querySelector('small');
+      if (small && option && option.detail) small.textContent = option.detail;
+    });
+    if (state.detail) modeNote(state.detail);
   };
-  Object.entries(MODE_NOTES).forEach(([id, note]) => {
+
+  const loadMode = async () => {
+    try {
+      const response = await fetch('/api/core/agent/mode');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.detail || `Core returned ${response.status}`);
+      renderMode(data);
+    } catch (err) {
+      modeNote('Execution mode unknown: ' + err.message);
+    }
+  };
+
+  const setMode = async (mode, button) => {
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch('/api/core/agent/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.detail || `Core refused the change (${response.status})`);
+      renderMode(data);
+    } catch (err) {
+      modeNote('Could not switch to ' + mode + ': ' + err.message);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  };
+
+  Object.entries(MODE_IDS).forEach(([id, value]) => {
     const button = el(id);
-    if (!button) return;
-    button.onclick = () => { const target = el('caModeNote'); if (target) target.textContent = note; };
+    if (button) button.onclick = () => setMode(value, button);
   });
+  loadMode();
 
   /* ---------------- controls ---------------- */
   const settingsButton = el('caSettings');

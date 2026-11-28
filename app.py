@@ -977,6 +977,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.core_request("GET","/api/v1/tools")
         if self.path=="/api/core/agents":
             return self.core_request("GET","/api/v1/agents")
+        if self.path=="/api/core/agent/mode":
+            return self.core_request("GET","/api/v1/agent/mode")
         if self.path=="/api/core/runs":
             return self.core_request("GET","/api/v1/agent/runs")
         if self.path=="/api/core/connectors":
@@ -1220,6 +1222,11 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(context,str) or len(context)>8000:
                 return self.send_json(400,{"error":"Context must be 8000 characters or fewer."})
             return self.core_request("POST","/api/v1/agent/runs",{"goal":goal.strip(),"context":context,"session_id":"desktop"})
+        if self.path=="/api/core/agent/mode":
+            mode=data.get("mode")
+            if mode not in ("autonomous","supervised","manual"):
+                return self.send_json(400,{"error":"Choose autonomous, supervised or manual."})
+            return self.core_request("POST","/api/v1/agent/mode",{"mode":mode})
         if self.path=="/api/core/workflow/runs":
             mission=data.get("mission","")
             nodes=data.get("nodes",[])

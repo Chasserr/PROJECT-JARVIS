@@ -79,9 +79,9 @@
 <section class="ca-modes" aria-labelledby="caModeTitle">
 <h3 id="caModeTitle">Mode</h3>
 <div class="ca-mode-list" role="radiogroup" aria-labelledby="caModeTitle">
-<button type="button" id="caModeAutonomous" class="ca-mode" role="radio" aria-checked="false" aria-disabled="true"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Autonomous</b><small>needs autonomous tool permissions in Core</small></span></button>
-<button type="button" id="caModeSupervised" class="ca-mode is-active" role="radio" aria-checked="true" aria-disabled="true"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Supervised</b><small>confirmation tools always pause</small></span></button>
-<button type="button" id="caModeManual" class="ca-mode" role="radio" aria-checked="false" aria-disabled="true"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Manual</b><small>no step-by-step endpoint in Core</small></span></button>
+<button type="button" id="caModeAutonomous" class="ca-mode" role="radio" aria-checked="false"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Autonomous</b><small>runs tools without pausing; dangerous tools still ask</small></span></button>
+<button type="button" id="caModeSupervised" class="ca-mode is-active" role="radio" aria-checked="true"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Supervised</b><small>state-changing tools pause for your approval</small></span></button>
+<button type="button" id="caModeManual" class="ca-mode" role="radio" aria-checked="false"><span class="ca-radio" aria-hidden="true"></span><span class="ca-mode-text"><b>Manual</b><small>every step pauses for your approval</small></span></button>
 </div>
 <p id="caModeNote" class="ca-mode-note">Supervised is enforced by the Core permission policy: every confirmation-tier tool pauses for your approval.</p>
 </section>

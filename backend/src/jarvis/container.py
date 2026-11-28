@@ -23,6 +23,7 @@ from .notes.store import NoteStore
 from .security.audit import AuditLog
 from .security.crypto import SecretBox
 from .security.kill_switch import KillSwitch
+from .security.modes import ModeStore
 from .security.permissions import PermissionPolicy
 from .skills.loader import LoadedSkill, SkillLoader
 from .telephony import VoiceGateway, register_telephony_tool
@@ -60,6 +61,7 @@ class Container:
     critic: Critic
     agent: AgentLoop
     kill_switch: KillSwitch
+    mode_store: ModeStore
     team: AgentTeam | None = None
     skills: list[LoadedSkill] = field(default_factory=list)
     connectors: ConnectorRegistry | None = None
@@ -89,6 +91,12 @@ def build_container(
     audit = AuditLog(db, box)
     events = EventBus(db)
     kill_switch = KillSwitch(db)
+    # Anchor a relative data dir to the backend package root so the mode file
+    # lands next to the database regardless of the process working directory.
+    mode_root = Path(settings.data_dir)
+    if not mode_root.is_absolute():
+        mode_root = Path(__file__).resolve().parents[2] / mode_root
+    mode_store = ModeStore(mode_root / "agent-mode.json")
 
     if embeddings is UNSET:
         if settings.ollama_embed_model:
@@ -137,6 +145,7 @@ def build_container(
         kill_switch=kill_switch,
         team=team,
     )
+    agent.set_mode_provider(mode_store.get)
 
     async def _phone_agent(goal: str) -> dict[str, Any]:
         """Run one phone turn through the same loop, planner and audit log."""
@@ -164,6 +173,7 @@ def build_container(
         critic=critic,
         agent=agent,
         kill_switch=kill_switch,
+        mode_store=mode_store,
         team=team,
         skills=loaded_skills,
         connectors=connectors,
