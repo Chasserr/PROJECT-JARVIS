@@ -58,6 +58,11 @@ def create_app(
 ) -> FastAPI:
     settings = settings or Settings()
     container = build_container(settings, llm=llm, embeddings=embeddings)
+    # Runs left in "running" belong to a core that stopped mid-run; close them so
+    # the dashboard never reports a permanently pending task.
+    orphaned = container.agent.reap_orphaned_runs()
+    if orphaned:
+        log.warning("marked %s orphaned run(s) as failed at startup", orphaned)
     app = FastAPI(
         title=f"{settings.app_name} API",
         version=__version__,
@@ -442,7 +447,7 @@ def create_app(
         return result
 
     @router.get("/agent/runs", response_model=RunListResponse)
-    def list_runs(limit: int = Query(default=20, ge=1, le=200)) -> RunListResponse:
+    def list_runs(limit: int = Query(default=200, ge=1, le=500)) -> RunListResponse:
         return RunListResponse(runs=container.agent.list_runs(limit))
 
     @router.get("/agent/runs/{run_id}", response_model=RunResult)

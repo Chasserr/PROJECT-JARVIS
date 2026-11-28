@@ -429,6 +429,25 @@ class AgentLoop:
         row = self._row(run_id)
         return self._from_row(row) if row else None
 
+    def reap_orphaned_runs(
+        self, reason: str = "interrupted: the core stopped before this run finished"
+    ) -> int:
+        """Close runs left in ``running`` by a previous process.
+
+        A run is only moved to ``completed``/``failed`` by this process, so any
+        row still marked running at startup belongs to a core that died or was
+        restarted mid-run. Without this they stay pending forever and inflate
+        the active-task count with no way to clear them.
+        """
+        with self._db.connection() as conn:
+            # ``error`` is stored encrypted like every other free-text column;
+            # writing it in the clear would break decryption for the runs list.
+            cursor = conn.execute(
+                "UPDATE runs SET status = ?, error = ?, updated_at = ? WHERE status = ?",
+                ("failed", self._enc_text(reason), time.time(), "running"),
+            )
+            return cursor.rowcount
+
     def list_runs(self, limit: int = 20) -> list[RunResult]:
         limit = max(1, min(limit, 200))
         with self._db.connection() as conn:
